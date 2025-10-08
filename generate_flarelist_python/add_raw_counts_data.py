@@ -67,15 +67,24 @@ def add_raw_counts_data(flare_list_with_files, save_csv=False):
             energy_range = [12, 25] * u.keV
         # print(att)
 
-        raw_counts = get_raw_counts(cpd_sci, time_range, energy_range)
+        try:
+            raw_counts = get_raw_counts(cpd_sci, time_range, energy_range)
 
-        # filter to only the 24 sub-collimators we care about
-        raw_counts_filtered = raw_counts[:, isc_24, :]
+            # filter to only the 24 sub-collimators we care about
+            raw_counts_filtered = raw_counts[:, isc_24, :]
 
-        for sc_idx, sc in enumerate(isc_24):
-            for abcd_idx, letter in enumerate(["a", "b", "c", "d"]):
-                results[f'{sc + 1}_{letter}_top'].append(raw_counts_filtered[0, sc_idx, abcd_idx].value)
-                results[f'{sc + 1}_{letter}_bot'].append(raw_counts_filtered[1, sc_idx, abcd_idx].value)
+            for sc_idx, sc in enumerate(isc_24):
+                for abcd_idx, letter in enumerate(["a", "b", "c", "d"]):
+                    results[f'{sc + 1}_{letter}_top'].append(raw_counts_filtered[0, sc_idx, abcd_idx].value)
+                    results[f'{sc + 1}_{letter}_bot'].append(raw_counts_filtered[1, sc_idx, abcd_idx].value)
+
+        except Exception as e:
+            logging.error(f'error getting raw counts for flare {i}: {e}')
+            # Append NaN for all raw counts
+            for sc in isc_24:
+                for letter in ["a", "b", "c", "d"]:
+                    results[f'{sc + 1}_{letter}_top'].append(np.nan)
+                    results[f'{sc + 1}_{letter}_bot'].append(np.nan)
 
         results["attenuator"].append(att)
 
@@ -85,7 +94,7 @@ def add_raw_counts_data(flare_list_with_files, save_csv=False):
     times_flares = pd.to_datetime(flare_list_with_raw_counts["peak_UTC"])
 
     if save_csv:
-        filename = f"stix_flarelist_w_locations_{times_flares.min().strftime('%Y%m%d')}_{times_flares.max().strftime('%Y%m%d')}.csv"
+        filename = f"stix_flarelist_w_raw_counts_{times_flares.min().strftime('%Y%m%d')}_{times_flares.max().strftime('%Y%m%d')}.csv"
         flare_list_with_raw_counts.to_csv(filename, index=False, index_label=False)
         logging.info(f'Saved flare list to {filename}')
 

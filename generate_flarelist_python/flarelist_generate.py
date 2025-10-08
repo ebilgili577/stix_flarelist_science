@@ -161,9 +161,9 @@ def estimate_flare_locations_and_attenuator(flare_list_with_files, save_csv=Fals
 
     """
 
-    logging.info('Estimating flare locations and attenuator status...')
+    logging.info('Estimating flare locations...')
     results = {"loc_x": [], "loc_y": [], "loc_x_stix": [], "loc_y_stix": [],
-               "sidelobes_ratio": [], "flare_id": [], "error": [], "attenuator": []}
+               "sidelobes_ratio": [], "flare_id": [], "error": []}
 
 
     for i, row in flare_list_with_files.iterrows():
@@ -372,13 +372,13 @@ def get_flares(tstart, tend, local_files_path):
     # step 2: filter to counts about 100 and get list of cpd files associated with each
     flare_list_with_files = filter_and_associate_files(flare_list, local_files_path)
 
-    # step 2.5: add raw counts to the list
+    # step 3: add raw counts to the list
     flare_list_with_files_raw_counts = add_raw_counts_data(flare_list_with_files)
 
-    # step 3: estimate flare locations and get attenuator status
+    # step 4: estimate flare locations and get attenuator status
     flare_list_with_locations = estimate_flare_locations_and_attenuator(flare_list_with_files_raw_counts)
 
-    # step 4: get more coordinate information and tidy
+    # step 5: get more coordinate information and tidy
     final_flarelist_with_locations = merge_and_process_data(flare_list_with_locations)
 
     logging.info('Flare processing completed successfully.')
