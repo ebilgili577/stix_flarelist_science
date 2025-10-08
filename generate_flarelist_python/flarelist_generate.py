@@ -4,23 +4,20 @@ import pandas as pd
 import numpy as np
 from astropy.time import Time
 from astropy import units as u
-from sunpy.net import Fido, attrs as a
 from sunpy.time import parse_time
-from stixpy.net.client import STIXClient
 from stixpy.product import Product
 from stixdcpy.net import Request as jreq
 from astropy.coordinates import SkyCoord
 from sunpy.coordinates import frames, SphericalScreen
 import astrospice
 import warnings
-from datetime import datetime
 from sunpy.util import SunpyDeprecationWarning
 import glob
-import re
-from datetime import datetime
+
 
 from flarelist_coord_utils import is_visible
 from flarelist_generate_utils import find_matching_files, search_remote_data
+from generate_flarelist_python.get_raw_counts import get_raw_counts
 from stx_estimate_flare_location import stx_estimate_flare_location
 
 
@@ -158,9 +155,21 @@ def estimate_flare_locations_and_attenuator(flare_list_with_files, save_csv=Fals
     logging.info('Estimating flare locations and attenuator status...')
     results = {"loc_x": [], "loc_y": [], "loc_x_stix": [], "loc_y_stix": [],
                "sidelobes_ratio": [], "flare_id": [], "error": [], "attenuator": []}
+    # for now hardcoded, can be refactored to be passed as argument
+    # we only care about the 24 sub-collimators below
+    # -1 for 0-index
+    isc_24 = np.array([1,2,3,4,5,6,7,8,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32]) - 1
+
+
+    # create all raw count columns
+    for sc in isc_24:
+        for letter in ["a","b","c","d"]:
+            results[f'{sc+1}_{letter}_top'] = []
+            results[f'{sc+1}_{letter}_bot'] = []
+
 
     for i, row in flare_list_with_files.iterrows():
-        energy_range = [4, 16] * u.keV
+        energy_range = [4, 10] * u.keV
 
         # Define a 20s time range around peak time
         tstart = parse_time(row["peak_UTC"]) - 20 * u.s
@@ -176,32 +185,24 @@ def estimate_flare_locations_and_attenuator(flare_list_with_files, save_csv=Fals
             # as the att_in column in the operational flarelist isnt working.
             if np.any(cpd_sci.data[(cpd_sci.data["time"] >= tstart) & (cpd_sci.data["time"] <= tend)]["rcr"]):
                 att = True
-                energy_range = [4, 25] * u.keV
-            print(att)
-            
+                energy_range = [12, 25] * u.keV
+            # print(att)
 
-            print('estimating flare location')
-            # Estimate flare location and get raw counts lol
-            # also if something wrong happens while calculating estimates basically raw counts go to waste?
-            flare_loc_stix, flare_loc, sidelobe, raw_counts = stx_estimate_flare_location(cpd_file, time_range, energy_range)
-            print(f' im gettin raw counts: {raw_counts}')
+            raw_counts = get_raw_counts(cpd_sci, time_range, energy_range)
 
-            raw_count_columns = None
+            # filter to only the 24 sub-collimators we care about
+            raw_counts_filtered = raw_counts[:, isc_24, :]
 
-            # for now hardcoded, can refactor the be passed as argument
+            flare_loc_stix, flare_loc, sidelobe = stx_estimate_flare_location(cpd_sci, time_range, energy_range)
 
-            isc_24 = np.array([1,2,3,4,5,6,7,8,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32]) -1
-                
-            # - top - bottom, n-collimators -> 
-            for sc in isc_24: 
-                for letter in ["a","b","c","d"]:
-                    for half in ["top", "bottom"]:
-                        raw_count_columns.append(f'{sc}_{letter}_{half}')
-
-            print(raw_count_columns)
-          
 
             # Store results
+            # append raw count values
+            for sc_idx, sc in enumerate(isc_24):
+                for abcd_idx, letter in enumerate(["a", "b", "c", "d"]):
+                    results[f'{sc + 1}_{letter}_top'].append(raw_counts_filtered[0, sc_idx, abcd_idx].value)
+                    results[f'{sc + 1}_{letter}_bot'].append(raw_counts_filtered[1, sc_idx, abcd_idx].value)
+
             results["loc_x"].append(flare_loc.Tx.value)
             results["loc_y"].append(flare_loc.Ty.value)
             results["loc_x_stix"].append(flare_loc_stix.Tx.value)
@@ -210,12 +211,16 @@ def estimate_flare_locations_and_attenuator(flare_list_with_files, save_csv=Fals
             results["error"].append(False)
             results["flare_id"].append(row["flare_id"])
             results["attenuator"].append(att)
-            # append here
-            # # append with raw_counts[:, isc_24, :] 
 
 
         except Exception as e:
             logging.error(f"Error processing flare {i}: {e}")
+            # same deal, ugly same loop
+            for sc_idx, sc in enumerate(isc_24):
+                for abcd_idx, letter in enumerate(["a", "b", "c", "d"]):
+                    results[f'{sc + 1}_{letter}_top'].append(raw_counts_filtered[0, sc_idx, abcd_idx].value)
+                    results[f'{sc + 1}_{letter}_bot'].append(raw_counts_filtered[1, sc_idx, abcd_idx].value)
+
             results["loc_x"].append(np.nan)
             results["loc_y"].append(np.nan)
             results["loc_x_stix"].append(np.nan)
@@ -224,8 +229,6 @@ def estimate_flare_locations_and_attenuator(flare_list_with_files, save_csv=Fals
             results["error"].append(True)
             results["flare_id"].append(row["flare_id"])
             results["attenuator"].append(att)
-            # append here
-            
 
     results = pd.DataFrame(results)
     flare_list_with_locations = pd.concat([flare_list_with_files.reset_index(drop=True), results], axis=1)
