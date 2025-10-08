@@ -1,6 +1,6 @@
 from stixpy.map.stix import STIXMap  
 from stixpy.product import Product
-from stixpy.calibration.visibility import calibrate_visibility, create_meta_pixels, create_visibility
+from stixpy.calibration.visibility import calibrate_visibility, create_visibility
 from stixpy.coordinates.frames import STIXImaging
 from stixpy.coordinates.transforms import get_hpc_info
 from xrayvision.imaging import vis_to_image, vis_to_map
@@ -14,6 +14,7 @@ from astropy import units as u
 from astropy.coordinates import SkyCoord
 import numpy as np 
 from flarelist_coord_utils import get_rsun_obs
+from create_raw_meta_pixels import create_raw_meta_pixels
 
 
 def stx_estimate_flare_location(pixel_path, time_range, energy_range, plot=False):
@@ -59,11 +60,17 @@ def stx_estimate_flare_location(pixel_path, time_range, energy_range, plot=False
     """
 
     cpd_sci = Product(pixel_path)
-    meta_pixels_sci = create_meta_pixels(cpd_sci, 
+
+    ## changed
+    ## elut correction doesnt work, throws errors
+    meta_pixels_sci, raw_counts = create_raw_meta_pixels(cpd_sci, 
                                          time_range=time_range, 
                                          energy_range=energy_range, 
                                          flare_location=[0, 0] * u.arcsec, 
-                                         no_shadowing=True)
+                                         no_shadowing=True,
+                                         return_raw_counts=True)
+    
+    print(f'raw counts after create raw meta: {raw_counts.info}')
 
     # create visibilities
     vis = create_visibility(meta_pixels_sci)
@@ -141,8 +148,8 @@ def stx_estimate_flare_location(pixel_path, time_range, energy_range, plot=False
         plt.tight_layout()
         plt.show()
 
-
-    return max_stix, max_hpc, sidelobes_ratio
+    # kind of dumb to return raw counts in location estimator, should change the pipeline structure? but also dont want to recompute stuff so this was more efficient?
+    return max_stix, max_hpc, sidelobes_ratio, raw_counts
 
 
 def calculate_sidelobes_ratio(bp_nat_map, threshold=200*u.arcsec):

@@ -24,6 +24,9 @@ from flarelist_generate_utils import find_matching_files, search_remote_data
 from stx_estimate_flare_location import stx_estimate_flare_location
 
 
+
+
+
 def fetch_operational_flare_list(tstart, tend, save_csv=False):
     """
     Fetches the STIX flare list from the Data Center using stixdcpy.
@@ -177,8 +180,26 @@ def estimate_flare_locations_and_attenuator(flare_list_with_files, save_csv=Fals
             print(att)
             
 
-            # Estimate flare location
-            flare_loc_stix, flare_loc, sidelobe = stx_estimate_flare_location(cpd_file, time_range, energy_range)
+            print('estimating flare location')
+            # Estimate flare location and get raw counts lol
+            # also if something wrong happens while calculating estimates basically raw counts go to waste?
+            flare_loc_stix, flare_loc, sidelobe, raw_counts = stx_estimate_flare_location(cpd_file, time_range, energy_range)
+            print(f' im gettin raw counts: {raw_counts}')
+
+            raw_count_columns = None
+
+            # for now hardcoded, can refactor the be passed as argument
+
+            isc_24 = np.array([1,2,3,4,5,6,7,8,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32]) -1
+                
+            # - top - bottom, n-collimators -> 
+            for sc in isc_24: 
+                for letter in ["a","b","c","d"]:
+                    for half in ["top", "bottom"]:
+                        raw_count_columns.append(f'{sc}_{letter}_{half}')
+
+            print(raw_count_columns)
+          
 
             # Store results
             results["loc_x"].append(flare_loc.Tx.value)
@@ -189,6 +210,9 @@ def estimate_flare_locations_and_attenuator(flare_list_with_files, save_csv=Fals
             results["error"].append(False)
             results["flare_id"].append(row["flare_id"])
             results["attenuator"].append(att)
+            # append here
+            # # append with raw_counts[:, isc_24, :] 
+
 
         except Exception as e:
             logging.error(f"Error processing flare {i}: {e}")
@@ -200,6 +224,8 @@ def estimate_flare_locations_and_attenuator(flare_list_with_files, save_csv=Fals
             results["error"].append(True)
             results["flare_id"].append(row["flare_id"])
             results["attenuator"].append(att)
+            # append here
+            
 
     results = pd.DataFrame(results)
     flare_list_with_locations = pd.concat([flare_list_with_files.reset_index(drop=True), results], axis=1)
