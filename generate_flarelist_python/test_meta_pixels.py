@@ -1,25 +1,45 @@
+import warnings
+from sunpy.util import SunpyDeprecationWarning
+
+# TODO: Check if this is needed
+warnings.filterwarnings("ignore", category=SunpyDeprecationWarning)
+warnings.filterwarnings("ignore", category=UserWarning, module="sunpy")
+warnings.filterwarnings("ignore", category=UserWarning, module="stixpy")
+warnings.filterwarnings("ignore", category=UserWarning, module="astropy")
+
+# Suppress stixpy logging completely
+import logging
+logging.getLogger('stixpy').setLevel(logging.CRITICAL)
+logging.getLogger('stixpy.coordinates.transforms').setLevel(logging.CRITICAL)
+
 from flarelist_generate import fetch_operational_flare_list, filter_and_associate_files
 from astropy.time import Time
-
-
-
+from tqdm import tqdm
 from flarelist_generate import estimate_flare_locations_and_attenuator, merge_and_process_data
+import pandas as pd
 
+# Set to True to fetch new data, False to use existing CSV
+should_fetch_flare_list = True
 if __name__ == "__main__":
-
-
-
-    tstart = Time("2024-10-01")
-    tend = Time("2024-10-02")
+    tstart = Time("2024-10-05")
+    tend = Time("2024-10-06")
     
-    flare_list = fetch_operational_flare_list(tstart, tend)
-
-    flare_list_with_files = filter_and_associate_files(flare_list, 'test')
-
-    flare_list_with_files.to_csv('test_flare_data.csv', index=False)
-
-    # flare_list_with_files = pd.read_csv('test_flare_data.csv')
+    if should_fetch_flare_list:
+        print("Fetching new flare data...")
+        flare_list = fetch_operational_flare_list(tstart, tend)
+        print(f"Found {len(flare_list)} flares in operational list")
+        
+        print("Filtering flares and associating CPD files...")
+        flare_list_with_files = filter_and_associate_files(flare_list, 'test')
+        flare_list_with_files.to_csv('test_flare_data.csv', index=False)
+        print(f"Found {len(flare_list_with_files)} flares with CPD files")
+    else:
+        print("Loading existing flare data...")
+        flare_list_with_files = pd.read_csv('test_flare_data.csv')
+        print(f"Loaded {len(flare_list_with_files)} flares from CSV")
 
     # step 3: estimate flare locations and calculate meta pixels and raw counts internally to test
+    print("Processing flares with location estimation...")
     flare_list_with_locations = estimate_flare_locations_and_attenuator(flare_list_with_files, save_csv=True)
+    print("Processing complete!")
 

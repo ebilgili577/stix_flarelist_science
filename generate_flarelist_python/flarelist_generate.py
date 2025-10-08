@@ -12,12 +12,22 @@ from sunpy.coordinates import frames, SphericalScreen
 import astrospice
 import warnings
 from sunpy.util import SunpyDeprecationWarning
+
+# TODO: Check if this is needed
+warnings.filterwarnings("ignore", category=SunpyDeprecationWarning)
+warnings.filterwarnings("ignore", category=UserWarning, module="sunpy")
+warnings.filterwarnings("ignore", category=UserWarning, module="stixpy")
+warnings.filterwarnings("ignore", category=UserWarning, module="astropy")
+
+# Suppress stixpy logging completely
+logging.getLogger('stixpy').setLevel(logging.CRITICAL)
+logging.getLogger('stixpy.coordinates.transforms').setLevel(logging.CRITICAL)
 import glob
 
 
 from flarelist_coord_utils import is_visible
 from flarelist_generate_utils import find_matching_files, search_remote_data
-from generate_flarelist_python.get_raw_counts import get_raw_counts
+from get_raw_counts import get_raw_counts
 from stx_estimate_flare_location import stx_estimate_flare_location
 
 
