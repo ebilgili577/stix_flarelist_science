@@ -1,16 +1,95 @@
 from typing import Union
 
 
-import astropy.units as u
-import numpy as np
-from astropy.time import Time
 from astropy.units import Quantity
 
+
+import pandas as pd
+import numpy as np
+from astropy.time import Time
+from astropy import units as u
+from sunpy.time import parse_time
+from stixpy.product import Product
+
+
+import logging
 
 from stixpy.calibration.livetime import get_livetime_fraction
 
 from stixpy.config.instrument import STIX_INSTRUMENT
 from stixpy.product.sources import CompressedPixelData, RawPixelData, SummedCompressedPixelData
+
+def add_raw_counts_data(flare_list_with_files, save_csv=False):
+    """
+        Adds 24 sub-collimators raw counts, top and bottom, a to d, as separate column
+
+        Parameters
+        ----------
+        flare_list_with_files : pd.DataFrame
+            DataFrame containing flare information including file paths (`filenames`) to associated `.fits` files.
+
+        """
+
+    logging.info('Getting raw counts and adding them...')
+
+    results = {}
+
+    # for now hardcoded, can be refactored to be passed as argument
+    # we only care about the 24 sub-collimators below
+    # -1 for 0-index
+    isc_24 = np.array([1, 2, 3, 4, 5, 6, 7, 8, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32]) - 1
+
+    # create all raw count columns
+    for sc in isc_24:
+        for letter in ["a", "b", "c", "d"]:
+            results[f'{sc + 1}_{letter}_top'] = []
+            results[f'{sc + 1}_{letter}_bot'] = []
+
+    results['attenuator'] = []
+
+    for i, row in flare_list_with_files.iterrows():
+        energy_range = [4, 10] * u.keV
+
+        # Define a 20s time range around peak time
+        tstart = parse_time(row["peak_UTC"]) - 20 * u.s
+        tend = parse_time(row["peak_UTC"]) + 20 * u.s
+        time_range = [tstart.strftime("%Y-%m-%dT%H:%M:%S"), tend.strftime("%Y-%m-%dT%H:%M:%S")]
+        cpd_file = row["filenames"]
+        att = False  # Default value for attenuator
+
+
+        cpd_sci = Product(cpd_file)
+
+        # Check for attenuator status by looking for any 'rcr' data points in the time range
+        # as the att_in column in the operational flarelist isnt working.
+        if np.any(cpd_sci.data[(cpd_sci.data["time"] >= tstart) & (cpd_sci.data["time"] <= tend)]["rcr"]):
+            att = True
+            energy_range = [12, 25] * u.keV
+        # print(att)
+
+        raw_counts = get_raw_counts(cpd_sci, time_range, energy_range)
+
+        # filter to only the 24 sub-collimators we care about
+        raw_counts_filtered = raw_counts[:, isc_24, :]
+
+        for sc_idx, sc in enumerate(isc_24):
+            for abcd_idx, letter in enumerate(["a", "b", "c", "d"]):
+                results[f'{sc + 1}_{letter}_top'].append(raw_counts_filtered[0, sc_idx, abcd_idx].value)
+                results[f'{sc + 1}_{letter}_bot'].append(raw_counts_filtered[1, sc_idx, abcd_idx].value)
+
+        results["attenuator"].append(att)
+
+    results = pd.DataFrame(results)
+    flare_list_with_raw_counts = pd.concat([flare_list_with_files.reset_index(drop=True), results], axis=1)
+
+    times_flares = pd.to_datetime(flare_list_with_raw_counts["peak_UTC"])
+
+    if save_csv:
+        filename = f"stix_flarelist_w_locations_{times_flares.min().strftime('%Y%m%d')}_{times_flares.max().strftime('%Y%m%d')}.csv"
+        flare_list_with_raw_counts.to_csv(filename, index=False, index_label=False)
+        logging.info(f'Saved flare list to {filename}')
+
+    return flare_list_with_raw_counts
 
 @u.quantity_input
 def get_raw_counts(

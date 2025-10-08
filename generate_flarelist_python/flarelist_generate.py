@@ -1,4 +1,3 @@
-import os
 import logging
 import pandas as pd
 import numpy as np
@@ -27,8 +26,8 @@ import glob
 
 from flarelist_coord_utils import is_visible
 from flarelist_generate_utils import find_matching_files, search_remote_data
-from get_raw_counts import get_raw_counts
 from stx_estimate_flare_location import stx_estimate_flare_location
+from add_raw_counts_data import add_raw_counts_data
 
 
 
@@ -165,17 +164,6 @@ def estimate_flare_locations_and_attenuator(flare_list_with_files, save_csv=Fals
     logging.info('Estimating flare locations and attenuator status...')
     results = {"loc_x": [], "loc_y": [], "loc_x_stix": [], "loc_y_stix": [],
                "sidelobes_ratio": [], "flare_id": [], "error": [], "attenuator": []}
-    # for now hardcoded, can be refactored to be passed as argument
-    # we only care about the 24 sub-collimators below
-    # -1 for 0-index
-    isc_24 = np.array([1,2,3,4,5,6,7,8,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32]) - 1
-
-
-    # create all raw count columns
-    for sc in isc_24:
-        for letter in ["a","b","c","d"]:
-            results[f'{sc+1}_{letter}_top'] = []
-            results[f'{sc+1}_{letter}_bot'] = []
 
 
     for i, row in flare_list_with_files.iterrows():
@@ -198,20 +186,9 @@ def estimate_flare_locations_and_attenuator(flare_list_with_files, save_csv=Fals
                 energy_range = [12, 25] * u.keV
             # print(att)
 
-            raw_counts = get_raw_counts(cpd_sci, time_range, energy_range)
-
-            # filter to only the 24 sub-collimators we care about
-            raw_counts_filtered = raw_counts[:, isc_24, :]
 
             flare_loc_stix, flare_loc, sidelobe = stx_estimate_flare_location(cpd_sci, time_range, energy_range)
 
-
-            # Store results
-            # append raw count values
-            for sc_idx, sc in enumerate(isc_24):
-                for abcd_idx, letter in enumerate(["a", "b", "c", "d"]):
-                    results[f'{sc + 1}_{letter}_top'].append(raw_counts_filtered[0, sc_idx, abcd_idx].value)
-                    results[f'{sc + 1}_{letter}_bot'].append(raw_counts_filtered[1, sc_idx, abcd_idx].value)
 
             results["loc_x"].append(flare_loc.Tx.value)
             results["loc_y"].append(flare_loc.Ty.value)
@@ -220,17 +197,10 @@ def estimate_flare_locations_and_attenuator(flare_list_with_files, save_csv=Fals
             results["sidelobes_ratio"].append(sidelobe)
             results["error"].append(False)
             results["flare_id"].append(row["flare_id"])
-            results["attenuator"].append(att)
 
 
         except Exception as e:
             logging.error(f"Error processing flare {i}: {e}")
-            # same deal, ugly same loop
-            for sc_idx, sc in enumerate(isc_24):
-                for abcd_idx, letter in enumerate(["a", "b", "c", "d"]):
-                    results[f'{sc + 1}_{letter}_top'].append(raw_counts_filtered[0, sc_idx, abcd_idx].value)
-                    results[f'{sc + 1}_{letter}_bot'].append(raw_counts_filtered[1, sc_idx, abcd_idx].value)
-
             results["loc_x"].append(np.nan)
             results["loc_y"].append(np.nan)
             results["loc_x_stix"].append(np.nan)
@@ -238,7 +208,6 @@ def estimate_flare_locations_and_attenuator(flare_list_with_files, save_csv=Fals
             results["sidelobes_ratio"].append(np.nan)
             results["error"].append(True)
             results["flare_id"].append(row["flare_id"])
-            results["attenuator"].append(att)
 
     results = pd.DataFrame(results)
     flare_list_with_locations = pd.concat([flare_list_with_files.reset_index(drop=True), results], axis=1)
@@ -403,8 +372,11 @@ def get_flares(tstart, tend, local_files_path):
     # step 2: filter to counts about 100 and get list of cpd files associated with each
     flare_list_with_files = filter_and_associate_files(flare_list, local_files_path)
 
+    # step 2.5: add raw counts to the list
+    flare_list_with_files_raw_counts = add_raw_counts_data(flare_list_with_files)
+
     # step 3: estimate flare locations and get attenuator status
-    flare_list_with_locations = estimate_flare_locations_and_attenuator(flare_list_with_files)
+    flare_list_with_locations = estimate_flare_locations_and_attenuator(flare_list_with_files_raw_counts)
 
     # step 4: get more coordinate information and tidy
     final_flarelist_with_locations = merge_and_process_data(flare_list_with_locations)

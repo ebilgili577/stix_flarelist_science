@@ -1,5 +1,3 @@
-from stixpy.map.stix import STIXMap  
-from stixpy.product import Product
 from stixpy.calibration.visibility import calibrate_visibility, create_visibility
 from stixpy.coordinates.frames import STIXImaging
 from stixpy.coordinates.transforms import get_hpc_info
@@ -59,7 +57,6 @@ def stx_estimate_flare_location(cpd_sci, time_range, energy_range, plot=False):
     - Optionally, plotting the back-projected images and marking the estimated flare locations.
     
     """
-
 
 
     meta_pixels_sci = create_meta_pixels(cpd_sci,
