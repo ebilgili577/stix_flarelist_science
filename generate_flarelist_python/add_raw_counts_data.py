@@ -1,8 +1,6 @@
 from typing import Union
 
-
 from astropy.units import Quantity
-
 
 import pandas as pd
 import numpy as np
@@ -11,7 +9,6 @@ from astropy import units as u
 from sunpy.time import parse_time
 from stixpy.product import Product
 
-
 import logging
 
 from stixpy.calibration.livetime import get_livetime_fraction
@@ -19,9 +16,11 @@ from stixpy.calibration.livetime import get_livetime_fraction
 from stixpy.config.instrument import STIX_INSTRUMENT
 from stixpy.product.sources import CompressedPixelData, RawPixelData, SummedCompressedPixelData
 
+
 def add_raw_counts_data(flare_list_with_files, save_csv=False):
     """
-        Adds 24 sub-collimators raw counts, top and bottom, a to d, as separate column
+        Adds 24 sub-collimators raw counts, top and bottom, a to d, as separate column and
+        appends attenuator status
 
         Parameters
         ----------
@@ -56,7 +55,6 @@ def add_raw_counts_data(flare_list_with_files, save_csv=False):
         time_range = [tstart.strftime("%Y-%m-%dT%H:%M:%S"), tend.strftime("%Y-%m-%dT%H:%M:%S")]
         cpd_file = row["filenames"]
         att = False  # Default value for attenuator
-
 
         cpd_sci = Product(cpd_file)
 
@@ -100,6 +98,7 @@ def add_raw_counts_data(flare_list_with_files, save_csv=False):
 
     return flare_list_with_raw_counts
 
+
 @u.quantity_input
 def get_raw_counts(
         pixel_data: Union[RawPixelData, CompressedPixelData, SummedCompressedPixelData],
@@ -142,7 +141,6 @@ def get_raw_counts(
     t_ind = np.argwhere(t_mask).ravel()
     e_ind = np.argwhere(e_mask).ravel()
 
-
     changed = []
     for column in ["rcr", "pixel_masks", "detector_masks"]:
         if np.unique(pixel_data.data[column][t_ind], axis=0).shape[0] != 1:
@@ -162,19 +160,15 @@ def get_raw_counts(
 
     pixel_data.data["livefrac"] = livefrac
 
-
     # get top and bottom
     idx_pix = slice(0, 8)
     counts = pixel_data.data["counts"].astype(float)
     ct = counts[t_ind][..., idx_pix, e_ind]
 
-
-
     ct_summed = ct.sum(axis=(0, 3))  # .astype(float)
 
     # returns raw counts for each of 32 sub-collimators, 4 bottom counts, 4 top counts
     raw_counts = None
-
 
     # (32, 4)
     abcd_top_counts = ct_summed[:, :4]
@@ -182,8 +176,5 @@ def get_raw_counts(
 
     # stack them together to get shape 2,32,4
     raw_counts = np.stack([abcd_top_counts, abcd_bot_counts], axis=0)
-
-
-
 
     return raw_counts

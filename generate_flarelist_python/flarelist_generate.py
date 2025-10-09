@@ -146,9 +146,9 @@ def filter_and_associate_files(flare_list, local_files_path, threshold_counts=10
     return flarelist_gt_1000
 
 
-def estimate_flare_locations_and_attenuator(flare_list_with_files, save_csv=False):
+def estimate_flare_locations(flare_list_with_files, save_csv=False):
     """
-    Estimates flare locations and gets the attenuator status for each flare in the provided flare list.
+    Estimates flare locations for each flare in the provided flare list.
 
     This function uses `stx_estimate_flare_location()` to estimate the flare location from the provided files,
     checks the attenuator status by examining the `rcr` column of the data, and adjusts the energy range accordingly.
@@ -372,11 +372,11 @@ def get_flares(tstart, tend, local_files_path):
     # step 2: filter to counts about 100 and get list of cpd files associated with each
     flare_list_with_files = filter_and_associate_files(flare_list, local_files_path)
 
-    # step 3: add raw counts to the list
+    # step 3: add raw counts and attenuator status to the list
     flare_list_with_files_raw_counts = add_raw_counts_data(flare_list_with_files)
 
-    # step 4: estimate flare locations and get attenuator status
-    flare_list_with_locations = estimate_flare_locations_and_attenuator(flare_list_with_files_raw_counts)
+    # step 4: estimate flare locations
+    flare_list_with_locations = estimate_flare_locations(flare_list_with_files_raw_counts)
 
     # step 5: get more coordinate information and tidy
     final_flarelist_with_locations = merge_and_process_data(flare_list_with_locations)
