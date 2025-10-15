@@ -16,7 +16,7 @@ logging.getLogger('stixpy.coordinates.transforms').setLevel(logging.CRITICAL)
 from flarelist_generate import fetch_operational_flare_list, filter_and_associate_files
 from astropy.time import Time
 from tqdm import tqdm
-from flarelist_generate import estimate_flare_locations_and_attenuator, merge_and_process_data
+from flarelist_generate import estimate_flare_locations, merge_and_process_data
 import pandas as pd
 
 # Set to True to fetch new data, False to use existing CSV
@@ -50,7 +50,7 @@ if __name__ == "__main__":
 
     # step 4: estimate flare locations and calculate meta pixels and raw counts internally to test
     print("Processing flares with location estimation...")
-    flare_list_with_locations = estimate_flare_locations_and_attenuator(flare_list_with_files_raw_counts, save_csv=True)
+    flare_list_with_locations = estimate_flare_locations(flare_list_with_files_raw_counts, save_csv=True)
 
     # step 5: get more coordinate information and tidy
     # final_flarelist_with_locations = merge_and_process_data(flare_list_with_locations)
