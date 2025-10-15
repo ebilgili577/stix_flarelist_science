@@ -8,7 +8,6 @@ __pycache__/
 
 *.fits
 *.zip
-*.png
 *.html
 *.key
 *.txt
