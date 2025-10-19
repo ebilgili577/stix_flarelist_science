@@ -56,16 +56,15 @@ def add_raw_counts_data(flare_list_with_files, save_csv=False):
         cpd_file = row["filenames"]
         att = False  # Default value for attenuator
 
-        cpd_sci = Product(cpd_file)
-
-        # Check for attenuator status by looking for any 'rcr' data points in the time range
-        # as the att_in column in the operational flarelist isnt working.
-        if np.any(cpd_sci.data[(cpd_sci.data["time"] >= tstart) & (cpd_sci.data["time"] <= tend)]["rcr"]):
-            att = True
-            energy_range = [12, 25] * u.keV
-        # print(att)
-
         try:
+            cpd_sci = Product(cpd_file)
+
+            # Check for attenuator status by looking for any 'rcr' data points in the time range
+            # as the att_in column in the operational flarelist isnt working.
+            if np.any(cpd_sci.data[(cpd_sci.data["time"] >= tstart) & (cpd_sci.data["time"] <= tend)]["rcr"]):
+                att = True
+                energy_range = [12, 25] * u.keV
+            # print(att)
             raw_counts = get_raw_counts(cpd_sci, time_range, energy_range)
 
             # filter to only the 24 sub-collimators we care about
