@@ -20,7 +20,7 @@ def do_plotting(flare_list_with_files, output_dir='flare_plots'):
     Parameters
     ----------
     flare_list_with_files : pd.DataFrame
-        DataFrame with flare data including 'filenames', 'peak_UTC', 'flare_id', 'att_in'
+        DataFrame with flare raw_fits including 'filenames', 'peak_UTC', 'flare_id', 'att_in'
     output_dir : str
         Directory to save the plots
     """
@@ -75,7 +75,7 @@ def do_plotting(flare_list_with_files, output_dir='flare_plots'):
                 # Get flare peak time
                 peak_time = Time(row["peak_UTC"])
                 
-                # Use att_in from CSV or check from data
+                # Use att_in from CSV or check from raw_fits
                 att = bool(row.get("att_in", False))
                 
                 # Find ALL time periods where attenuator is IN across the entire FITS file
@@ -94,8 +94,8 @@ def do_plotting(flare_list_with_files, output_dir='flare_plots'):
                 e_ind = np.argwhere(e_mask).ravel()
                 
                 if len(e_ind) == 0:
-                    print(f"  Skipping flare {flare_id}: no data in energy range")
-                    ax.text(0.5, 0.5, f'Flare {flare_id}\nNo data in energy range', 
+                    print(f"  Skipping flare {flare_id}: no raw_fits in energy range")
+                    ax.text(0.5, 0.5, f'Flare {flare_id}\nNo raw_fits in energy range',
                            ha='center', va='center', transform=ax.transAxes, fontsize=10)
                     ax.set_xticks([])
                     ax.set_yticks([])
@@ -179,7 +179,7 @@ def do_plotting(flare_list_with_files, output_dir='flare_plots'):
 
 
 if __name__ == "__main__":
-    print("Reading flare data...")
+    print("Reading flare raw_fits...")
     flare_list_with_files = pd.read_csv('stix_flarelist_w_locations_20240901_20240909.csv')
     print(f"Loaded {len(flare_list_with_files)} flares")
     

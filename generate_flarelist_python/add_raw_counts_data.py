@@ -58,7 +58,7 @@ def add_raw_counts_data(flare_list_with_files, save_csv=False):
 
         cpd_sci = Product(cpd_file)
 
-        # Check for attenuator status by looking for any 'rcr' data points in the time range
+        # Check for attenuator status by looking for any 'rcr' raw_fits points in the time range
         # as the att_in column in the operational flarelist isnt working.
         if np.any(cpd_sci.data[(cpd_sci.data["time"] >= tstart) & (cpd_sci.data["time"] <= tend)]["rcr"]):
             att = True
@@ -106,12 +106,12 @@ def get_raw_counts(
         energy_range: Quantity["energy"],  # noqa: F821
 ):
     r"""
-    Create meta-pixels by summing data with in given time and energy range.
+    Create meta-pixels by summing raw_fits with in given time and energy range.
 
     Parameters
     ----------
     pixel_data
-        Input pixel data
+        Input pixel raw_fits
     time_range :
         Start and end times
     energy_range

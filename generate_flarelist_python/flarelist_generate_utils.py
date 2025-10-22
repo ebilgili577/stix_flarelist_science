@@ -50,7 +50,7 @@ def find_matching_files(files, flare_time):
 
 def search_remote_data(flare_row, path="/Users/laurahayes/esa_backup/flare_ana/stix_flarelists/generate_flarelist/pixel_data/{file}"):
     """
-    Searches for remote data using Fido and returns the file if found, else None.
+    Searches for remote raw_fits using Fido and returns the file if found, else None.
 
     Parameters:
     -----------

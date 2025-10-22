@@ -15,6 +15,7 @@ __pycache__/
 *.fit
 *.pptx
 *.xlsx
+*.csv
 
 # Distribution / packaging
 .Python

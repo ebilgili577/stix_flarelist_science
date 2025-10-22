@@ -18,9 +18,9 @@ from stixpy.calibration.visibility import create_meta_pixels
 
 def stx_estimate_flare_location(cpd_sci, time_range, energy_range, plot=False):
     """
-    Estimate the flare location using STIX imaging data.
+    Estimate the flare location using STIX imaging raw_fits.
 
-    This function processes the imaging data from the STIX instrument on Solar Orbiter to estimate the location of a solar flare.
+    This function processes the imaging raw_fits from the STIX instrument on Solar Orbiter to estimate the location of a solar flare.
     It is based on the IDL software `stx_estimate_flare_location`. 
 
     It creates back-projected images in both STIX imaging coordinates and Helioprojective coordinates, and finds the maximum location of the pixel.
@@ -30,7 +30,7 @@ def stx_estimate_flare_location(cpd_sci, time_range, energy_range, plot=False):
     Parameters
     ----------
     pixel_path : str
-        Path to the STIX pixel data product file.
+        Path to the STIX pixel raw_fits product file.
     time_range : `sunpy.time.TimeRange`
         The time range over which to estimate the flare location.
     energy_range : `astropy.units.Quantity`
@@ -49,10 +49,10 @@ def stx_estimate_flare_location(cpd_sci, time_range, energy_range, plot=False):
     Notes
     -----
     The function involves the following steps:
-    - Reading STIX pixel data and generating meta pixels for a given time and energy range.
-    - Creating visibility data from the meta pixels.
+    - Reading STIX pixel raw_fits and generating meta pixels for a given time and energy range.
+    - Creating visibility raw_fits from the meta pixels.
     - Obtaining solar observer coordinates and converting them to the Heliographic Stonyhurst frame.
-    - Creating a back-projected image from the visibility data.
+    - Creating a back-projected image from the visibility raw_fits.
     - Transforming the coordinates of the maximum pixel in the image to Helioprojective coordinates.
     - Optionally, plotting the back-projected images and marking the estimated flare locations.
     
@@ -159,7 +159,7 @@ def calculate_sidelobes_ratio(bp_nat_map, threshold=200*u.arcsec):
     Parameters
     ----------
     bp_nat_map : `sunpy.map.Map`
-        The back-projected image map (in natural units) to analyze. This map is typically generated from visibility data
+        The back-projected image map (in natural units) to analyze. This map is typically generated from visibility raw_fits
         and contains the image of the flare.
     threshold : `astropy.units.Quantity`, optional
         The angular separation threshold (in arcseconds) around the peak within which sidelobes are excluded from the calculation.

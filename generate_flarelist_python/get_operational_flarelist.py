@@ -21,7 +21,7 @@ def get_flarelist_from_datacenter(tstart, tend, save_csv=False):
     using stixdcpy.
 
     This flarelist is based on an automated appraoch from the quicklook
-    data. 
+    raw_fits.
 
     If save_csv=True, it will save csv with filename: stix_flare_list_tstart_tend.csv
 
