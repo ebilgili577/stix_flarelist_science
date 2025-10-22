@@ -349,10 +349,10 @@ def merge_and_process_data(flare_list_with_locations, save_csv=False):
         filename = os.path.join(
             "output",
             "5_final_flarelist",
-            f"stix_flarelist_w_locations_{times_flares.min().strftime('%Y%m%d')}_{times_flares.max().strftime('%Y%m%d')}.csv"
+            f"stix_flarelist_final_{times_flares.min().strftime('%Y%m%d')}_{times_flares.max().strftime('%Y%m%d')}.csv"
         )
         os.makedirs(os.path.dirname(filename), exist_ok=True)
-        flare_list_with_locations.to_csv(filename, index=False, index_label=False)
+        flarelist_final.to_csv(filename, index=False, index_label=False)
         logging.info(f'Saved flare list to {filename}')
 
     return flarelist_final
