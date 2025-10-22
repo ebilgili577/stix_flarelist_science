@@ -332,7 +332,7 @@ def merge_and_process_data(flare_list_with_locations, save_csv=False):
 
     columns = ['start_UTC', 'end_UTC', 'peak_UTC', '4-10 keV', '10-15 keV', '15-25 keV', '25-50 keV', '50-84 keV',
                'bkg 4-10 keV', 'bkg 10-15 keV', 'bkg 15-25 keV', 'bkg 25-50 keV', 'bkg 50-84 keV', 'bkg_baseline_4-10 keV',
-               'hpc_x_solo', 'hpc_y_solo', 'hpc_x_earth', 'hpc_y_earth', 'visible_from_earth', 
+               'hpc_x_solo', 'hpc_y_solo', 'loc_x_stix', 'loc_y_stix', 'hpc_x_earth', 'hpc_y_earth', 'visible_from_earth', 
                'hgs_lon', 'hgs_lat', 'hgc_lon', 'hgc_lat', 
                'solo_position_lat', 'solo_position_lon', 'solo_position_AU_distance', 
                'GOES_class_time_of_flare', 'GOES_flux_time_of_flare', 'att_in', 'flare_id', 'sidelobes_ratio', 
