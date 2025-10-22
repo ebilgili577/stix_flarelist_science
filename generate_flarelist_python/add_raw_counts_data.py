@@ -91,7 +91,12 @@ def add_raw_counts_data(flare_list_with_files, save_csv=False):
     times_flares = pd.to_datetime(flare_list_with_raw_counts["peak_UTC"])
 
     if save_csv:
-        filename = f"stix_flarelist_w_raw_counts_{times_flares.min().strftime('%Y%m%d')}_{times_flares.max().strftime('%Y%m%d')}.csv"
+        filename = os.path.join(
+            "output",
+            "3_raw_counts",
+            f"raw_counts_{times_flares.min().strftime('%Y%m%d')}_{times_flares.max().strftime('%Y%m%d')}.csv"
+        )
+        os.makedirs(os.path.dirname(filename), exist_ok=True)
         flare_list_with_raw_counts.to_csv(filename, index=False, index_label=False)
         logging.info(f'Saved flare list to {filename}')
 

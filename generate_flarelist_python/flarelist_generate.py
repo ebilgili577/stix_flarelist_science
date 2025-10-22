@@ -22,6 +22,7 @@ warnings.filterwarnings("ignore", category=UserWarning, module="astropy")
 logging.getLogger('stixpy').setLevel(logging.CRITICAL)
 logging.getLogger('stixpy.coordinates.transforms').setLevel(logging.CRITICAL)
 import glob
+import os
 
 
 from flarelist_coord_utils import is_visible
@@ -85,11 +86,16 @@ def fetch_operational_flare_list(tstart, tend, save_csv=False):
     full_flare_list.reset_index(inplace=True, drop=True)
     times_flares = pd.to_datetime(full_flare_list["peak_UTC"])
 
-
-    if save_csv:
-        filename = f"stix_operational_list_{times_flares.min().strftime('%Y%m%d')}_{times_flares.max().strftime('%Y%m%d')}.csv"
+     if save_csv:
+        filename = os.path.join(
+            "output",
+            "1_flare_list",
+            f"stix_operational_list_{times_flares.min().strftime('%Y%m%d')}_{times_flares.max().strftime('%Y%m%d')}.csv"
+        )
+        os.makedirs(os.path.dirname(filename), exist_ok=True)
         full_flare_list.to_csv(filename, index_label=False)
         logging.info(f'Saved flare list to {filename}')
+
 
     return full_flare_list
 
@@ -142,10 +148,16 @@ def filter_and_associate_files(flare_list, local_files_path, threshold_counts=10
     flarelist_gt_1000["filenames"] = file_names
     times_flares = pd.to_datetime(flarelist_gt_1000["peak_UTC"])
 
-    if save_csv:
-        filename = f"stix_operational_list_with_file_info_{times_flares.min().strftime('%Y%m%d')}_{times_flares.max().strftime('%Y%m%d')}.csv"
-        flarelist_gt_1000.to_csv(filename, index=False, index_label=False)
+      if save_csv:
+        filename = os.path.join(
+            "output",
+            "2_filter_associate",
+            f"stix_operational_list_with_file_info_{times_flares.min().strftime('%Y%m%d')}_{times_flares.max().strftime('%Y%m%d')}.csv"
+        )
+        os.makedirs(os.path.dirname(filename), exist_ok=True)
+        flarelist_gt_1000.to_csv(filename, index=False, index_label=False) 
         logging.info(f'Saved flare list to {filename}')
+
 
     return flarelist_gt_1000
 
@@ -218,8 +230,13 @@ def estimate_flare_locations(flare_list_with_files, save_csv=False):
     
     times_flares = pd.to_datetime(flare_list_with_locations["peak_UTC"])
 
-    if save_csv:
-        filename = f"stix_flarelist_w_locations_{times_flares.min().strftime('%Y%m%d')}_{times_flares.max().strftime('%Y%m%d')}.csv"
+     if save_csv:
+        filename = os.path.join(
+            "output",
+            "4_estimate_locations",
+            f"stix_flarelist_w_locations_{times_flares.min().strftime('%Y%m%d')}_{times_flares.max().strftime('%Y%m%d')}.csv"
+        )
+        os.makedirs(os.path.dirname(filename), exist_ok=True)
         flare_list_with_locations.to_csv(filename, index=False, index_label=False)
         logging.info(f'Saved flare list to {filename}')
 
@@ -329,8 +346,13 @@ def merge_and_process_data(flare_list_with_locations, save_csv=False):
     times_flares = pd.to_datetime(flarelist_final["peak_UTC"])
 
     if save_csv:
-        filename = f"stix_flarelist_w_locations_{times_flares.min().strftime('%Y%m%d')}_{times_flares.max().strftime('%Y%m%d')}.csv"
-        flarelist_final.to_csv(filename, index=False, index_label=False)
+        filename = os.path.join(
+            "output",
+            "5_final_flarelist",
+            f"stix_flarelist_w_locations_{times_flares.min().strftime('%Y%m%d')}_{times_flares.max().strftime('%Y%m%d')}.csv"
+        )
+        os.makedirs(os.path.dirname(filename), exist_ok=True)
+        flare_list_with_locations.to_csv(filename, index=False, index_label=False)
         logging.info(f'Saved flare list to {filename}')
 
     return flarelist_final
