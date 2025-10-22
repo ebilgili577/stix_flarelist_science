@@ -8,7 +8,7 @@ from astropy.time import Time
 from astropy import units as u
 from sunpy.time import parse_time
 from stixpy.product import Product
-
+import os
 import logging
 
 from stixpy.calibration.livetime import get_livetime_fraction
