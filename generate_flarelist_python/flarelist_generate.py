@@ -37,7 +37,7 @@ def fetch_operational_flare_list(tstart, tend, save_csv=False):
     """
     Fetches the STIX flare list from the Data Center using stixdcpy.
 
-    This flarelist is based on an automated approach from the quicklook raw_fits.
+    This flarelist is based on an automated approach from the quicklook data.
 
     If save_csv=True, it will save csv with filename: stix_flare_list_tstart_tend.csv
 
@@ -97,7 +97,7 @@ def fetch_operational_flare_list(tstart, tend, save_csv=False):
 def filter_and_associate_files(flare_list, local_files_path, threshold_counts=1000, save_csv=False):
     """
     Filters the flare list to only include events above a certain threshold
-    and attempts to associate each event with a local or remote raw_fits file.
+    and attempts to associate each event with a local or remote data file.
 
     Parameters:
     ----------
@@ -116,7 +116,7 @@ def filter_and_associate_files(flare_list, local_files_path, threshold_counts=10
         Filtered flare list with file paths added.
 
     """
-    logging.info('Filtering flare list and associating raw_fits files')
+    logging.info('Filtering flare list and associating data files')
     flarelist_gt_1000 = flare_list[flare_list["LC0_PEAK_COUNTS_4S"] >= threshold_counts]
     flarelist_gt_1000.reset_index(inplace=True, drop=True)
 
@@ -134,7 +134,7 @@ def filter_and_associate_files(flare_list, local_files_path, threshold_counts=10
                 else:
                     file = "file_issue"
             except Exception as e:
-                logging.warning(f"Failed to fetch remote raw_fits for flare {i+1}: {e}")
+                logging.warning(f"Failed to fetch remote data for flare {i+1}: {e}")
                 file = "file_issue"
         file_names.append(file)
         logging.info(f"Processed flare to find files {i + 1}/{len(flarelist_gt_1000)}")
@@ -155,7 +155,7 @@ def estimate_flare_locations(flare_list_with_files, save_csv=False):
     Estimates flare locations for each flare in the provided flare list.
 
     This function uses `stx_estimate_flare_location()` to estimate the flare location from the provided files,
-    checks the attenuator status by examining the `rcr` column of the raw_fits, and adjusts the energy range accordingly.
+    checks the attenuator status by examining the `rcr` column of the data, and adjusts the energy range accordingly.
     Results are appended to the input DataFrame.
 
     Parameters
@@ -183,7 +183,7 @@ def estimate_flare_locations(flare_list_with_files, save_csv=False):
         try:
             cpd_sci = Product(cpd_file)
 
-            # Check for attenuator status by looking for any 'rcr' raw_fits points in the time range
+            # Check for attenuator status by looking for any 'rcr' data points in the time range
             # as the att_in column in the operational flarelist isnt working.
             if np.any(cpd_sci.data[(cpd_sci.data["time"] >= tstart) & (cpd_sci.data["time"] <= tend)]["rcr"]):
                 att = True
@@ -241,7 +241,7 @@ def merge_and_process_data(flare_list_with_locations, save_csv=False):
     pd.DataFrame
         Fully processed flare list with positional information and visibility calculation.
     """
-    logging.info('Merging and processing flare raw_fits...')
+    logging.info('Merging and processing flare data...')
 
     # Load kernels for Solar Orbiter position calculations
     kernels = astrospice.registry.get_kernels("solar orbiter", "predict")
@@ -360,7 +360,7 @@ def get_flares(tstart, tend, local_files_path):
 
 
     """
-    # there's currently a deprecation warning in stixpy for querying raw_fits (see #142 In TCDSolar/stixpy;)
+    # there's currently a deprecation warning in stixpy for querying data (see #142 In TCDSolar/stixpy;)
     warnings.filterwarnings("ignore", category=SunpyDeprecationWarning)
 
     if isinstance(tstart, str):

@@ -19,7 +19,7 @@ from tqdm import tqdm
 from flarelist_generate import estimate_flare_locations, merge_and_process_data
 import pandas as pd
 
-# Set to True to fetch new raw_fits, False to use existing CSV
+# Set to True to fetch new data, False to use existing CSV
 should_fetch_flare_list = False
 if __name__ == "__main__":
     tstart = Time("2024-10-01")
@@ -27,7 +27,7 @@ if __name__ == "__main__":
     
     if should_fetch_flare_list:
         # step 1
-        print("Fetching new flare raw_fits...")
+        print("Fetching new flare data...")
         flare_list = fetch_operational_flare_list(tstart, tend)
         print(f"Found {len(flare_list)} flares in operational list")
 
@@ -37,7 +37,7 @@ if __name__ == "__main__":
         flare_list_with_files.to_csv('test_flare_data.csv', index=False)
         print(f"Found {len(flare_list_with_files)} flares with CPD files")
     else:
-        print("Loading existing flare raw_fits...")
+        print("Loading existing flare data...")
         flare_list_with_files = pd.read_csv('test_flare_data.csv')
         print(f"Loaded {len(flare_list_with_files)} flares from CSV")
 

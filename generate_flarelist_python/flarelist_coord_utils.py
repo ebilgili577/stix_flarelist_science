@@ -56,7 +56,7 @@ def is_visible(coord):
     data_to_sun = coord.observer.radius * CartesianRepresentation(1, 0, 0) - data
 
     is_behind = data.x < 0
-    #print(raw_fits.x.to(u.AU))
+    #print(data.x.to(u.AU))
     is_beyond_limb = np.sqrt(1 - (data.x / data.norm()) ** 2) > coord.rsun / coord.observer.radius
     #is_above_surface = data_to_sun.norm() >= coord.rsun
     
