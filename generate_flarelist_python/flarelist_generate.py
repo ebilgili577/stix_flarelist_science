@@ -86,7 +86,7 @@ def fetch_operational_flare_list(tstart, tend, save_csv=False):
     full_flare_list.reset_index(inplace=True, drop=True)
     times_flares = pd.to_datetime(full_flare_list["peak_UTC"])
 
-     if save_csv:
+    if save_csv:
         filename = os.path.join(
             "output",
             "1_flare_list",
@@ -148,7 +148,7 @@ def filter_and_associate_files(flare_list, local_files_path, threshold_counts=10
     flarelist_gt_1000["filenames"] = file_names
     times_flares = pd.to_datetime(flarelist_gt_1000["peak_UTC"])
 
-      if save_csv:
+    if save_csv:
         filename = os.path.join(
             "output",
             "2_filter_associate",
@@ -230,7 +230,7 @@ def estimate_flare_locations(flare_list_with_files, save_csv=False):
     
     times_flares = pd.to_datetime(flare_list_with_locations["peak_UTC"])
 
-     if save_csv:
+    if save_csv:
         filename = os.path.join(
             "output",
             "4_estimate_locations",
