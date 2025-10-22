@@ -309,6 +309,10 @@ def merge_and_process_data(flare_list_with_locations, save_csv=False):
     flare_list_with_locations["goes_estimated_min_flux"] = 10**flare_list_with_locations["goes_estimated_min_flux"]
     flare_list_with_locations["goes_estimated_mean_flux"] = 10**flare_list_with_locations["goes_estimated_mean_flux"]
 
+    # Collect raw counts columns (pattern: number_letter_top/bot) and attenuator
+    raw_counts_cols = [col for col in flare_list_with_locations.columns 
+                       if ('_top' in col or '_bot' in col or col == 'attenuator')]
+
     columns = ['start_UTC', 'end_UTC', 'peak_UTC', '4-10 keV', '10-15 keV', '15-25 keV', '25-50 keV', '50-84 keV',
                'bkg 4-10 keV', 'bkg 10-15 keV', 'bkg 15-25 keV', 'bkg 25-50 keV', 'bkg 50-84 keV', 'bkg_baseline_4-10 keV',
                'hpc_x_solo', 'hpc_y_solo', 'hpc_x_earth', 'hpc_y_earth', 'visible_from_earth', 
@@ -317,7 +321,7 @@ def merge_and_process_data(flare_list_with_locations, save_csv=False):
                'GOES_class_time_of_flare', 'GOES_flux_time_of_flare', 'att_in', 'flare_id', 'sidelobes_ratio', 
                'goes_estimated_min_class', 'goes_estimated_max_class',
                'goes_estimated_mean_class', 'goes_estimated_min_flux',
-               'goes_estimated_max_flux', 'goes_estimated_mean_flux', 'error_with_imaging']
+               'goes_estimated_max_flux', 'goes_estimated_mean_flux', 'error_with_imaging'] + raw_counts_cols
 
 
     flarelist_final = flare_list_with_locations[columns]
