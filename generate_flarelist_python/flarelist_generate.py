@@ -179,7 +179,7 @@ def estimate_flare_locations(flare_list_with_files, save_csv=False):
 
     logging.info('Estimating flare locations...')
     results = {"loc_x": [], "loc_y": [], "loc_x_stix": [], "loc_y_stix": [],
-               "sidelobes_ratio": [], "flare_id": [], "error": []}
+               "sidelobes_ratio": [], "error": []}
 
 
     for i, row in flare_list_with_files.iterrows():
@@ -212,7 +212,6 @@ def estimate_flare_locations(flare_list_with_files, save_csv=False):
             results["loc_y_stix"].append(flare_loc_stix.Ty.value)
             results["sidelobes_ratio"].append(sidelobe)
             results["error"].append(False)
-            results["flare_id"].append(row["flare_id"])
 
 
         except Exception as e:
@@ -223,7 +222,6 @@ def estimate_flare_locations(flare_list_with_files, save_csv=False):
             results["loc_y_stix"].append(np.nan)
             results["sidelobes_ratio"].append(np.nan)
             results["error"].append(True)
-            results["flare_id"].append(row["flare_id"])
 
     results = pd.DataFrame(results)
     flare_list_with_locations = pd.concat([flare_list_with_files.reset_index(drop=True), results], axis=1)
@@ -320,15 +318,17 @@ def merge_and_process_data(flare_list_with_locations, save_csv=False):
 
     # overwrite the attenuator keyword to correct one from files.
     flare_list_with_locations["att_in"] = flare_list_with_locations["attenuator"]
+    # Remove the original attenuator column to avoid duplication
+    flare_list_with_locations.drop(columns=["attenuator"], inplace=True)
 
     #
     flare_list_with_locations["goes_estimated_max_flux"] = 10**flare_list_with_locations["goes_estimated_max_flux"]
     flare_list_with_locations["goes_estimated_min_flux"] = 10**flare_list_with_locations["goes_estimated_min_flux"]
     flare_list_with_locations["goes_estimated_mean_flux"] = 10**flare_list_with_locations["goes_estimated_mean_flux"]
 
-    # Collect raw counts columns (pattern: number_letter_top/bot) and attenuator
+    # Collect raw counts columns (pattern: number_letter_top/bot)
     raw_counts_cols = [col for col in flare_list_with_locations.columns 
-                       if ('_top' in col or '_bot' in col or col == 'attenuator')]
+                       if ('_top' in col or '_bot' in col)]
 
     columns = ['start_UTC', 'end_UTC', 'peak_UTC', '4-10 keV', '10-15 keV', '15-25 keV', '25-50 keV', '50-84 keV',
                'bkg 4-10 keV', 'bkg 10-15 keV', 'bkg 15-25 keV', 'bkg 25-50 keV', 'bkg 50-84 keV', 'bkg_baseline_4-10 keV',
