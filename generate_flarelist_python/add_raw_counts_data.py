@@ -1,4 +1,3 @@
-from email.feedparser import headerRE
 from typing import Union
 
 from astropy.units import Quantity
