@@ -1,3 +1,4 @@
+from email.feedparser import headerRE
 from typing import Union
 
 from astropy.units import Quantity
@@ -65,15 +66,13 @@ def add_raw_counts_data(flare_list_with_files, save_csv=False):
                 att = True
                 energy_range = [12, 25] * u.keV
             # print(att)
-            raw_counts = get_raw_counts(cpd_sci, time_range, energy_range)
 
-            # filter to only the 24 sub-collimators we care about
-            raw_counts_filtered = raw_counts[:, isc_24, :]
+            raw_counts = get_raw_counts(cpd_sci, time_range, energy_range)
 
             for sc_idx, sc in enumerate(isc_24):
                 for abcd_idx, letter in enumerate(["a", "b", "c", "d"]):
-                    results[f'{sc + 1}_{letter}_top'].append(raw_counts_filtered[0, sc_idx, abcd_idx].value)
-                    results[f'{sc + 1}_{letter}_bot'].append(raw_counts_filtered[1, sc_idx, abcd_idx].value)
+                    results[f'{sc + 1}_{letter}_top'].append(raw_counts[0, sc_idx, abcd_idx].value)
+                    results[f'{sc + 1}_{letter}_bot'].append(raw_counts[1, sc_idx, abcd_idx].value)
 
         except Exception as e:
             logging.error(f'error getting raw counts for flare {i}: {e}')
@@ -123,7 +122,7 @@ def get_raw_counts(
     Returns
     -------
     `np array`
-        raw sub-collimator counts top and bottom shape (2,32,4)
+        raw sub-collimator counts top and bottom shape (2,24,4)
     """
 
     # checks if a time bin fully overlaps, is fully within, starts within, or ends within the specified time range.
@@ -164,21 +163,30 @@ def get_raw_counts(
 
     pixel_data.data["livefrac"] = livefrac
 
+    d_masks = pixel_data.data['detector_masks']
+
+    isc_24 = np.array([1, 2, 3, 4, 5, 6, 7, 8, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32]) - 1
+
+    # Check all required sub-collimators are present
+    if not all(d_masks[0][idx] == 1 for idx in isc_24):
+        raise ValueError("Not all 24 required sub-collimators are available")
+
     # get top and bottom
     idx_pix = slice(0, 8)
     counts = pixel_data.data["counts"].astype(float)
     ct = counts[t_ind][..., idx_pix, e_ind]
 
-    ct_summed = ct.sum(axis=(0, 3))  # .astype(float)
+    # Check pixel dimensions for top and bottom availability at ct level
+    if ct.shape[-2] < 8:
+        raise ValueError(f"Insufficient pixel data: only {ct.shape[-2]} pixels available, need at least 8")
 
-    # returns raw counts for each of 32 sub-collimators, 4 bottom counts, 4 top counts
-    raw_counts = None
+    ct_summed = ct.sum(axis=(0, 3))  # sums over time range (axis 0) and energy range (axis 3)
 
-    # (32, 4)
-    abcd_top_counts = ct_summed[:, :4]
-    abcd_bot_counts = ct_summed[:, 4:]
+    # Filter to only the 24 required sub-collimators during extraction
+    abcd_top_counts = ct_summed[isc_24, :4]
+    abcd_bot_counts = ct_summed[isc_24, 4:]
 
-    # stack them together to get shape 2,32,4
+    # stack them together to get shape 2,24,4
     raw_counts = np.stack([abcd_top_counts, abcd_bot_counts], axis=0)
 
     return raw_counts
