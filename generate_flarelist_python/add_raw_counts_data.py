@@ -66,7 +66,7 @@ def add_raw_counts_data(flare_list_with_files, save_csv=False):
                 energy_range = [12, 25] * u.keV
             # print(att)
 
-            raw_counts = get_raw_counts(cpd_sci, time_range, energy_range)
+            raw_counts = get_raw_counts(cpd_sci, time_range, energy_range, isc_24)
 
             for sc_idx, sc in enumerate(isc_24):
                 for abcd_idx, letter in enumerate(["a", "b", "c", "d"]):
@@ -106,9 +106,13 @@ def get_raw_counts(
         pixel_data: Union[RawPixelData, CompressedPixelData, SummedCompressedPixelData],
         time_range: Time,
         energy_range: Quantity["energy"],  # noqa: F821
+        isc_indices: np.ndarray,
 ):
     r"""
     Create meta-pixels by summing data with in given time and energy range.
+
+    Validates that all requested sub-collimators are available and that sufficient
+    pixel data exists before processing. Returns only the specified sub-collimators.
 
     Parameters
     ----------
@@ -118,10 +122,21 @@ def get_raw_counts(
         Start and end times
     energy_range
         Start and end energies
+    isc_indices
+        Array of sub-collimator indices to extract (0-indexed)
     Returns
     -------
-    `np array`
-        raw sub-collimator counts top and bottom shape (2,24,4)
+    np.ndarray
+        Raw sub-collimator counts with shape (2, N, 4) where:
+        - First dimension: top (0) and bottom (1) 
+        - Second dimension: N requested sub-collimators
+        - Third dimension: a, b, c, d components
+        
+    Raises
+    ------
+    ValueError
+        If not all requested sub-collimators are available in detector_masks
+        If insufficient pixel data (less than 8 pixels) for top/bottom separation
     """
 
     # checks if a time bin fully overlaps, is fully within, starts within, or ends within the specified time range.
@@ -164,26 +179,37 @@ def get_raw_counts(
 
     d_masks = pixel_data.data['detector_masks']
 
-    isc_24 = np.array([1, 2, 3, 4, 5, 6, 7, 8, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32]) - 1
 
     # Check all required sub-collimators are present
-    if not all(d_masks[0][idx] == 1 for idx in isc_24):
+    if not all(d_masks[0][idx] == 1 for idx in isc_indices):
         raise ValueError("Not all 24 required sub-collimators are available")
 
     # get top and bottom
     idx_pix = slice(0, 8)
     counts = pixel_data.data["counts"].astype(float)
-    ct = counts[t_ind][..., idx_pix, e_ind]
+    ct = counts[t_ind][..., idx_pix, e_ind] # shape -> (len(t_ind), n_detectors 0-32, 0-12, len(e_ind))   
 
     # Check pixel dimensions for top and bottom availability at ct level
-    if ct.shape[-2] < 8:
-        raise ValueError(f"Insufficient pixel data: only {ct.shape[-2]} pixels available, need at least 8")
+    if ct.shape[2] < 8:
+        raise ValueError(f"Insufficient pixel data: only {ct.shape[2]} pixels available, need at least 8")
 
     ct_summed = ct.sum(axis=(0, 3))  # sums over time range (axis 0) and energy range (axis 3)
+    # has shape -> (n_detectors, 8) -> n_detectors might be 1-32
+
+    # detectors are densely packed, so we need to calculate positions
+
+    # Get which sub-collimators are actually present
+    available_subcols = np.where(d_masks[0] == 1)[0]  # e.g., [0,1,2,4,5,7,...]
+
+    # Create mapping: subcol_id -> position in ct_summed
+    subcol_to_position = {subcol_id: pos for pos, subcol_id in enumerate(available_subcols)}
+
+    # Map our requested indices to their positions
+    positions = [subcol_to_position[idx] for idx in isc_indices]
 
     # Filter to only the 24 required sub-collimators during extraction
-    abcd_top_counts = ct_summed[isc_24, :4]
-    abcd_bot_counts = ct_summed[isc_24, 4:]
+    abcd_top_counts = ct_summed[positions, :4]
+    abcd_bot_counts = ct_summed[positions, 4:]
 
     # stack them together to get shape 2,24,4
     raw_counts = np.stack([abcd_top_counts, abcd_bot_counts], axis=0)
