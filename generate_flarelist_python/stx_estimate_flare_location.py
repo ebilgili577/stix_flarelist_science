@@ -1,6 +1,4 @@
-from stixpy.map.stix import STIXMap  
-from stixpy.product import Product
-from stixpy.calibration.visibility import calibrate_visibility, create_meta_pixels, create_visibility
+from stixpy.calibration.visibility import calibrate_visibility, create_visibility
 from stixpy.coordinates.frames import STIXImaging
 from stixpy.coordinates.transforms import get_hpc_info
 from xrayvision.imaging import vis_to_image, vis_to_map
@@ -15,8 +13,10 @@ from astropy.coordinates import SkyCoord
 import numpy as np 
 from flarelist_coord_utils import get_rsun_obs
 
+from stixpy.calibration.visibility import create_meta_pixels
 
-def stx_estimate_flare_location(pixel_path, time_range, energy_range, plot=False):
+
+def stx_estimate_flare_location(cpd_sci, time_range, energy_range, plot=False):
     """
     Estimate the flare location using STIX imaging data.
 
@@ -58,12 +58,14 @@ def stx_estimate_flare_location(pixel_path, time_range, energy_range, plot=False
     
     """
 
-    cpd_sci = Product(pixel_path)
-    meta_pixels_sci = create_meta_pixels(cpd_sci, 
-                                         time_range=time_range, 
-                                         energy_range=energy_range, 
-                                         flare_location=[0, 0] * u.arcsec, 
-                                         no_shadowing=True)
+
+    meta_pixels_sci = create_meta_pixels(cpd_sci,
+                                         time_range=time_range,
+                                         energy_range=energy_range,
+                                         flare_location=[0, 0] * u.arcsec,
+                                         no_shadowing=True,
+                                         )
+
 
     # create visibilities
     vis = create_visibility(meta_pixels_sci)
@@ -74,23 +76,23 @@ def stx_estimate_flare_location(pixel_path, time_range, energy_range, plot=False
 
     center_map = SkyCoord(0*u.arcsec, 0*u.arcsec, frame=frames.Helioprojective(observer=solo, obstime=solo.obstime))
     center_coord = center_map.transform_to(STIXImaging(obstime=vis_tr.start, obstime_end=vis_tr.end, observer=solo))
-    
+
     # get calibrated visibilities - use center of Sun as phase center
     cal_vis = calibrate_visibility(vis, flare_location=center_coord)
-    
+
     # order by sub-collimator e.g. 10a, 10b, 10c, 9a, 9b, 9c ....
     isc_10_7 = [3, 20, 22, 16, 14, 32, 21, 26, 4, 24, 8, 28]
     idx = np.argwhere(np.isin(cal_vis.meta["isc"], isc_10_7)).ravel()
 
     # only use subcolimators 7 - 10
     vis10_7 = cal_vis[idx]
-    
+
 
     # set up image size
-    imsize = [512, 512] * u.pixel  
+    imsize = [512, 512] * u.pixel
 
     # to make sure the full Sun is within FOV - the 2.6 is taken to be the same as the IDL software
-    pixel = get_rsun_obs(solo) * 2.6 / imsize 
+    pixel = get_rsun_obs(solo) * 2.6 / imsize
 
 
     # get back projection image
@@ -107,7 +109,7 @@ def stx_estimate_flare_location(pixel_path, time_range, energy_range, plot=False
     sidelobes_ratio = calculate_sidelobes_ratio(fd_bp_map)
 
     # Make a sunpy map from the bp_image, in HPC from STIX observer
-    hpc_ref = center_coord.transform_to(frames.Helioprojective(observer=solo, obstime=vis_tr.center)) 
+    hpc_ref = center_coord.transform_to(frames.Helioprojective(observer=solo, obstime=vis_tr.center))
     header_hp = sunpy.map.make_fitswcs_header(bp_image, hpc_ref, scale=pixel, rotation_angle=90 * u.deg + roll)
     hp_map = sunpy.map.Map((bp_image, header_hp))
 
@@ -120,7 +122,7 @@ def stx_estimate_flare_location(pixel_path, time_range, energy_range, plot=False
     with SphericalScreen(hp_map.observer_coordinate, only_off_disk=True):
         max_hpc = max_stix.transform_to(hp_map.coordinate_frame)
 
-    # if plot True, then plot maps in STIX + HPC frames, with max coord. 
+    # if plot True, then plot maps in STIX + HPC frames, with max coord.
     if plot:
         hp_map_rotated = hp_map.rotate()
         fig = plt.figure(figsize=(12, 8))
@@ -129,20 +131,20 @@ def stx_estimate_flare_location(pixel_path, time_range, energy_range, plot=False
         fd_bp_map.plot(axes=ax0, cmap="viridis")
         fd_bp_map.draw_limb()
         fd_bp_map.draw_grid(annotate=False)
-        
+
         hp_map_rotated.plot(axes=ax1, cmap="viridis")
         hp_map_rotated.draw_limb()
         hp_map_rotated.draw_grid(annotate=False)
-        
-        
+
+
         ax0.plot_coord(max_stix, marker=".", markersize=50, fillstyle="none", color="r", markeredgewidth=2)
         with SphericalScreen(hp_map.observer_coordinate, only_off_disk=True):
             ax1.plot_coord(max_stix, marker=".", markersize=50, fillstyle="none", color="r", markeredgewidth=2)
         plt.tight_layout()
         plt.show()
 
-
     return max_stix, max_hpc, sidelobes_ratio
+
 
 
 def calculate_sidelobes_ratio(bp_nat_map, threshold=200*u.arcsec):

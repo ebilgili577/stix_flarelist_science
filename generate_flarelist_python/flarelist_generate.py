@@ -1,34 +1,44 @@
-import os
 import logging
 import pandas as pd
 import numpy as np
 from astropy.time import Time
 from astropy import units as u
-from sunpy.net import Fido, attrs as a
 from sunpy.time import parse_time
-from stixpy.net.client import STIXClient
 from stixpy.product import Product
 from stixdcpy.net import Request as jreq
 from astropy.coordinates import SkyCoord
 from sunpy.coordinates import frames, SphericalScreen
 import astrospice
 import warnings
-from datetime import datetime
 from sunpy.util import SunpyDeprecationWarning
+
+# TODO: Check if this is needed
+warnings.filterwarnings("ignore", category=SunpyDeprecationWarning)
+warnings.filterwarnings("ignore", category=UserWarning, module="sunpy")
+warnings.filterwarnings("ignore", category=UserWarning, module="stixpy")
+warnings.filterwarnings("ignore", category=UserWarning, module="astropy")
+
+# Suppress stixpy logging completely
+logging.getLogger('stixpy').setLevel(logging.CRITICAL)
+logging.getLogger('stixpy.coordinates.transforms').setLevel(logging.CRITICAL)
 import glob
-import re
-from datetime import datetime
+import os
+
 
 from flarelist_coord_utils import is_visible
 from flarelist_generate_utils import find_matching_files, search_remote_data
 from stx_estimate_flare_location import stx_estimate_flare_location
+from add_raw_counts_data import add_raw_counts_data
+
+
+
 
 
 def fetch_operational_flare_list(tstart, tend, save_csv=False):
     """
     Fetches the STIX flare list from the Data Center using stixdcpy.
 
-    This flarelist is based on an automated approach from the quicklook data. 
+    This flarelist is based on an automated approach from the quicklook data.
 
     If save_csv=True, it will save csv with filename: stix_flare_list_tstart_tend.csv
 
@@ -76,11 +86,16 @@ def fetch_operational_flare_list(tstart, tend, save_csv=False):
     full_flare_list.reset_index(inplace=True, drop=True)
     times_flares = pd.to_datetime(full_flare_list["peak_UTC"])
 
-
     if save_csv:
-        filename = f"stix_operational_list_{times_flares.min().strftime('%Y%m%d')}_{times_flares.max().strftime('%Y%m%d')}.csv"
+        filename = os.path.join(
+            "output",
+            "1_flare_list",
+            f"stix_operational_list_{times_flares.min().strftime('%Y%m%d')}_{times_flares.max().strftime('%Y%m%d')}.csv"
+        )
+        os.makedirs(os.path.dirname(filename), exist_ok=True)
         full_flare_list.to_csv(filename, index_label=False)
         logging.info(f'Saved flare list to {filename}')
+
 
     return full_flare_list
 
@@ -118,10 +133,14 @@ def filter_and_associate_files(flare_list, local_files_path, threshold_counts=10
         peak_flare = row["peak_UTC"]
         file = find_matching_files(local_files, peak_flare)
         if file is None:
-            file = search_remote_data(row, path=local_files_path+"/{file}")
-            if file:
-                logging.info(f"Fetched remote file for flare {i+1}/{len(flarelist_gt_1000)}")
-            else:
+            try:
+                file = search_remote_data(row, path=local_files_path+"/{file}")
+                if file:
+                    logging.info(f"Fetched remote file for flare {i+1}/{len(flarelist_gt_1000)}")
+                else:
+                    file = "file_issue"
+            except Exception as e:
+                logging.warning(f"Failed to fetch remote data for flare {i+1}: {e}")
                 file = "file_issue"
         file_names.append(file)
         logging.info(f"Processed flare to find files {i + 1}/{len(flarelist_gt_1000)}")
@@ -130,16 +149,22 @@ def filter_and_associate_files(flare_list, local_files_path, threshold_counts=10
     times_flares = pd.to_datetime(flarelist_gt_1000["peak_UTC"])
 
     if save_csv:
-        filename = f"stix_operational_list_with_file_info_{times_flares.min().strftime('%Y%m%d')}_{times_flares.max().strftime('%Y%m%d')}.csv"
-        flarelist_gt_1000.to_csv(filename, index=False, index_label=False)
+        filename = os.path.join(
+            "output",
+            "2_filter_associate",
+            f"stix_operational_list_with_file_info_{times_flares.min().strftime('%Y%m%d')}_{times_flares.max().strftime('%Y%m%d')}.csv"
+        )
+        os.makedirs(os.path.dirname(filename), exist_ok=True)
+        flarelist_gt_1000.to_csv(filename, index=False, index_label=False) 
         logging.info(f'Saved flare list to {filename}')
+
 
     return flarelist_gt_1000
 
 
-def estimate_flare_locations_and_attenuator(flare_list_with_files, save_csv=False):
+def estimate_flare_locations(flare_list_with_files, save_csv=False):
     """
-    Estimates flare locations and gets the attenuator status for each flare in the provided flare list.
+    Estimates flare locations for each flare in the provided flare list.
 
     This function uses `stx_estimate_flare_location()` to estimate the flare location from the provided files,
     checks the attenuator status by examining the `rcr` column of the data, and adjusts the energy range accordingly.
@@ -152,12 +177,13 @@ def estimate_flare_locations_and_attenuator(flare_list_with_files, save_csv=Fals
 
     """
 
-    logging.info('Estimating flare locations and attenuator status...')
+    logging.info('Estimating flare locations...')
     results = {"loc_x": [], "loc_y": [], "loc_x_stix": [], "loc_y_stix": [],
-               "sidelobes_ratio": [], "flare_id": [], "error": [], "attenuator": []}
+               "sidelobes_ratio": [], "error": []}
+
 
     for i, row in flare_list_with_files.iterrows():
-        energy_range = [4, 16] * u.keV
+        energy_range = [4, 10] * u.keV
 
         # Define a 20s time range around peak time
         tstart = parse_time(row["peak_UTC"]) - 20 * u.s
@@ -173,22 +199,20 @@ def estimate_flare_locations_and_attenuator(flare_list_with_files, save_csv=Fals
             # as the att_in column in the operational flarelist isnt working.
             if np.any(cpd_sci.data[(cpd_sci.data["time"] >= tstart) & (cpd_sci.data["time"] <= tend)]["rcr"]):
                 att = True
-                energy_range = [4, 25] * u.keV
-            print(att)
-            
+                energy_range = [12, 25] * u.keV
+            # print(att)
 
-            # Estimate flare location
-            flare_loc_stix, flare_loc, sidelobe = stx_estimate_flare_location(cpd_file, time_range, energy_range)
 
-            # Store results
+            flare_loc_stix, flare_loc, sidelobe = stx_estimate_flare_location(cpd_sci, time_range, energy_range)
+
+
             results["loc_x"].append(flare_loc.Tx.value)
             results["loc_y"].append(flare_loc.Ty.value)
             results["loc_x_stix"].append(flare_loc_stix.Tx.value)
             results["loc_y_stix"].append(flare_loc_stix.Ty.value)
             results["sidelobes_ratio"].append(sidelobe)
             results["error"].append(False)
-            results["flare_id"].append(row["flare_id"])
-            results["attenuator"].append(att)
+
 
         except Exception as e:
             logging.error(f"Error processing flare {i}: {e}")
@@ -198,8 +222,6 @@ def estimate_flare_locations_and_attenuator(flare_list_with_files, save_csv=Fals
             results["loc_y_stix"].append(np.nan)
             results["sidelobes_ratio"].append(np.nan)
             results["error"].append(True)
-            results["flare_id"].append(row["flare_id"])
-            results["attenuator"].append(att)
 
     results = pd.DataFrame(results)
     flare_list_with_locations = pd.concat([flare_list_with_files.reset_index(drop=True), results], axis=1)
@@ -207,7 +229,12 @@ def estimate_flare_locations_and_attenuator(flare_list_with_files, save_csv=Fals
     times_flares = pd.to_datetime(flare_list_with_locations["peak_UTC"])
 
     if save_csv:
-        filename = f"stix_flarelist_w_locations_{times_flares.min().strftime('%Y%m%d')}_{times_flares.max().strftime('%Y%m%d')}.csv"
+        filename = os.path.join(
+            "output",
+            "4_estimate_locations",
+            f"stix_flarelist_w_locations_{times_flares.min().strftime('%Y%m%d')}_{times_flares.max().strftime('%Y%m%d')}.csv"
+        )
+        os.makedirs(os.path.dirname(filename), exist_ok=True)
         flare_list_with_locations.to_csv(filename, index=False, index_label=False)
         logging.info(f'Saved flare list to {filename}')
 
@@ -291,21 +318,27 @@ def merge_and_process_data(flare_list_with_locations, save_csv=False):
 
     # overwrite the attenuator keyword to correct one from files.
     flare_list_with_locations["att_in"] = flare_list_with_locations["attenuator"]
+    # Remove the original attenuator column to avoid duplication
+    flare_list_with_locations.drop(columns=["attenuator"], inplace=True)
 
     #
     flare_list_with_locations["goes_estimated_max_flux"] = 10**flare_list_with_locations["goes_estimated_max_flux"]
     flare_list_with_locations["goes_estimated_min_flux"] = 10**flare_list_with_locations["goes_estimated_min_flux"]
     flare_list_with_locations["goes_estimated_mean_flux"] = 10**flare_list_with_locations["goes_estimated_mean_flux"]
 
+    # Collect raw counts columns (pattern: number_letter_top/bot)
+    raw_counts_cols = [col for col in flare_list_with_locations.columns 
+                       if ('_top' in col or '_bot' in col)]
+
     columns = ['start_UTC', 'end_UTC', 'peak_UTC', '4-10 keV', '10-15 keV', '15-25 keV', '25-50 keV', '50-84 keV',
                'bkg 4-10 keV', 'bkg 10-15 keV', 'bkg 15-25 keV', 'bkg 25-50 keV', 'bkg 50-84 keV', 'bkg_baseline_4-10 keV',
-               'hpc_x_solo', 'hpc_y_solo', 'hpc_x_earth', 'hpc_y_earth', 'visible_from_earth', 
+               'hpc_x_solo', 'hpc_y_solo', 'loc_x_stix', 'loc_y_stix', 'hpc_x_earth', 'hpc_y_earth', 'visible_from_earth', 
                'hgs_lon', 'hgs_lat', 'hgc_lon', 'hgc_lat', 
                'solo_position_lat', 'solo_position_lon', 'solo_position_AU_distance', 
                'GOES_class_time_of_flare', 'GOES_flux_time_of_flare', 'att_in', 'flare_id', 'sidelobes_ratio', 
                'goes_estimated_min_class', 'goes_estimated_max_class',
                'goes_estimated_mean_class', 'goes_estimated_min_flux',
-               'goes_estimated_max_flux', 'goes_estimated_mean_flux', 'error_with_imaging']
+               'goes_estimated_max_flux', 'goes_estimated_mean_flux', 'error_with_imaging'] + raw_counts_cols
 
 
     flarelist_final = flare_list_with_locations[columns]
@@ -313,7 +346,12 @@ def merge_and_process_data(flare_list_with_locations, save_csv=False):
     times_flares = pd.to_datetime(flarelist_final["peak_UTC"])
 
     if save_csv:
-        filename = f"stix_flarelist_w_locations_{times_flares.min().strftime('%Y%m%d')}_{times_flares.max().strftime('%Y%m%d')}.csv"
+        filename = os.path.join(
+            "output",
+            "5_final_flarelist",
+            f"stix_flarelist_final_{times_flares.min().strftime('%Y%m%d')}_{times_flares.max().strftime('%Y%m%d')}.csv"
+        )
+        os.makedirs(os.path.dirname(filename), exist_ok=True)
         flarelist_final.to_csv(filename, index=False, index_label=False)
         logging.info(f'Saved flare list to {filename}')
 
@@ -362,12 +400,15 @@ def get_flares(tstart, tend, local_files_path):
     flare_list = fetch_operational_flare_list(tstart, tend)
 
     # step 2: filter to counts about 100 and get list of cpd files associated with each
-    flare_list_with_files = filter_and_associate_files(flare_list, local_files_path)
+    flare_list_with_files = filter_and_associate_files(flare_list, local_files_path, save_csv=True)
 
-    # step 3: estimate flare locations and get attenuator status
-    flare_list_with_locations = estimate_flare_locations_and_attenuator(flare_list_with_files)
+    # step 3: add raw counts and attenuator status to the list
+    flare_list_with_files_raw_counts = add_raw_counts_data(flare_list_with_files)
 
-    # step 4: get more coordinate information and tidy
+    # step 4: estimate flare locations
+    flare_list_with_locations = estimate_flare_locations(flare_list_with_files_raw_counts)
+
+    # step 5: get more coordinate information and tidy
     final_flarelist_with_locations = merge_and_process_data(flare_list_with_locations)
 
     logging.info('Flare processing completed successfully.')
