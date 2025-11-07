@@ -35,9 +35,7 @@ def add_raw_counts_data(flare_list_with_files, save_csv=False):
 
     # for now hardcoded, can be refactored to be passed as argument
     # we only care about the 24 sub-collimators below
-    # -1 for 0-index
-    isc_24 = np.array([1, 2, 3, 4, 5, 6, 7, 8, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32]) - 1
-
+    isc_24 = np.array([6,28,0,24,4,22,5,29,1,14,26,30,23,7,27,20,25,3,15,13,31,2,19,21])
     # create all raw count columns
     for sc in isc_24:
         for letter in ["a", "b", "c", "d"]:
@@ -70,8 +68,8 @@ def add_raw_counts_data(flare_list_with_files, save_csv=False):
 
             for sc_idx, sc in enumerate(isc_24):
                 for abcd_idx, letter in enumerate(["a", "b", "c", "d"]):
-                    results[f'{sc + 1}_{letter}_top'].append(raw_counts[0, sc_idx, abcd_idx].value)
-                    results[f'{sc + 1}_{letter}_bot'].append(raw_counts[1, sc_idx, abcd_idx].value)
+                    results[f'{sc + 1}_{letter}_top'].append(raw_counts[0, sc_idx, abcd_idx])
+                    results[f'{sc + 1}_{letter}_bot'].append(raw_counts[1, sc_idx, abcd_idx])
 
         except Exception as e:
             logging.error(f'error getting raw counts for flare {i}: {e}')
