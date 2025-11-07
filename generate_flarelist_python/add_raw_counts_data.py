@@ -68,8 +68,8 @@ def add_raw_counts_data(flare_list_with_files, save_csv=False):
 
             for sc_idx, sc in enumerate(isc_24):
                 for abcd_idx, letter in enumerate(["a", "b", "c", "d"]):
-                    results[f'{sc + 1}_{letter}_top'].append(raw_counts[0, sc_idx, abcd_idx])
-                    results[f'{sc + 1}_{letter}_bot'].append(raw_counts[1, sc_idx, abcd_idx])
+                    results[f'{sc + 1}_{letter}_top'].append(raw_counts[0, sc_idx, abcd_idx].value)
+                    results[f'{sc + 1}_{letter}_bot'].append(raw_counts[1, sc_idx, abcd_idx].value)
 
         except Exception as e:
             logging.error(f'error getting raw counts for flare {i}: {e}')
