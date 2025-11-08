@@ -25,13 +25,10 @@ import glob
 import os
 
 
-from flarelist_coord_utils import is_visible
-from flarelist_generate_utils import find_matching_files, search_remote_data
-from stx_estimate_flare_location import stx_estimate_flare_location
-from add_raw_counts_data import add_raw_counts_data
-
-
-
+from .flarelist_coord_utils import is_visible
+from .flarelist_generate_utils import find_matching_files, search_remote_data
+from .stx_estimate_flare_location import stx_estimate_flare_location
+from .add_raw_counts_data import add_raw_counts_data
 
 
 def fetch_operational_flare_list(tstart, tend, save_csv=False):
@@ -330,15 +327,24 @@ def merge_and_process_data(flare_list_with_locations, save_csv=False):
     raw_counts_cols = [col for col in flare_list_with_locations.columns 
                        if ('_top' in col or '_bot' in col)]
 
-    columns = ['start_UTC', 'end_UTC', 'peak_UTC', '4-10 keV', '10-15 keV', '15-25 keV', '25-50 keV', '50-84 keV',
-               'bkg 4-10 keV', 'bkg 10-15 keV', 'bkg 15-25 keV', 'bkg 25-50 keV', 'bkg 50-84 keV', 'bkg_baseline_4-10 keV',
-               'hpc_x_solo', 'hpc_y_solo', 'loc_x_stix', 'loc_y_stix', 'hpc_x_earth', 'hpc_y_earth', 'visible_from_earth', 
-               'hgs_lon', 'hgs_lat', 'hgc_lon', 'hgc_lat', 
-               'solo_position_lat', 'solo_position_lon', 'solo_position_AU_distance', 
-               'GOES_class_time_of_flare', 'GOES_flux_time_of_flare', 'att_in', 'flare_id', 'sidelobes_ratio', 
-               'goes_estimated_min_class', 'goes_estimated_max_class',
-               'goes_estimated_mean_class', 'goes_estimated_min_flux',
-               'goes_estimated_max_flux', 'goes_estimated_mean_flux', 'error_with_imaging'] + raw_counts_cols
+    columns = ['start_UTC', 'end_UTC', 'peak_UTC', 'filenames',
+            #     '4-10 keV', '10-15 keV', '15-25 keV', '25-50 keV', '50-84 keV',
+            #    'bkg 4-10 keV', 'bkg 10-15 keV', 'bkg 15-25 keV', 'bkg 25-50 keV', 'bkg 50-84 keV', 'bkg_baseline_4-10 keV',
+            #    'hpc_x_solo', 'hpc_y_solo', 
+               
+               'loc_x_stix', 'loc_y_stix', 
+               
+            #    'hpc_x_earth', 'hpc_y_earth', 'visible_from_earth', 
+            #    'hgs_lon', 'hgs_lat', 'hgc_lon', 'hgc_lat', 
+            #    'solo_position_lat', 'solo_position_lon', 'solo_position_AU_distance', 
+            #    'GOES_class_time_of_flare', 'GOES_flux_time_of_flare', 
+                'att_in',
+               
+                'flare_id', 'sidelobes_ratio', 
+            #    'goes_estimated_min_class', 'goes_estimated_max_class',
+            #    'goes_estimated_mean_class', 'goes_estimated_min_flux',
+            #    'goes_estimated_max_flux', 'goes_estimated_mean_flux', 
+               'error_with_imaging'] + raw_counts_cols
 
 
     flarelist_final = flare_list_with_locations[columns]
