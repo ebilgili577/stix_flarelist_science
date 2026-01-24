@@ -1,21 +1,114 @@
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Tuple, List
+from typing import Optional, Tuple, List, Dict
 
 import numpy as np
 from tensorflow import keras
+from sklearn.metrics import r2_score
 
 from .config import TrainConfig, EXPERIMENTS_DIR
 from .model import build_model
 from .data import DataDict, denormalize_locations
 
 
+def compute_extended_metrics(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    save_dir: Path,
+    model_name: str
+) -> Dict:
+    """
+    Compute extended metrics including q95, error distribution, and spatial error map.
+    
+    Args:
+        y_true: True values (denormalized, in arcsec)
+        y_pred: Predicted values (denormalized, in arcsec)
+        save_dir: Directory to save metrics and plots
+        model_name: Name for file naming
+        
+    Returns:
+        Dictionary with all metrics
+    """
+    errors = y_pred - y_true
+    abs_errors = np.abs(errors)
+    
+    # Basic metrics
+    mae_x = np.mean(abs_errors[:, 0])
+    mae_y = np.mean(abs_errors[:, 1])
+    median_ae_x = np.median(abs_errors[:, 0])
+    median_ae_y = np.median(abs_errors[:, 1])
+    p95_x = np.percentile(abs_errors[:, 0], 95)
+    p95_y = np.percentile(abs_errors[:, 1], 95)
+    r2_x = r2_score(y_true[:, 0], y_pred[:, 0])
+    r2_y = r2_score(y_true[:, 1], y_pred[:, 1])
+    
+    # Euclidean distance error
+    euclidean = np.sqrt(errors[:, 0]**2 + errors[:, 1]**2)
+    euclidean_mae = np.mean(euclidean)
+    euclidean_median = np.median(euclidean)
+    euclidean_p95 = np.percentile(euclidean, 95)
+    
+    metrics = {
+        'mae_x': float(mae_x),
+        'mae_y': float(mae_y),
+        'mae_mean': float((mae_x + mae_y) / 2),
+        'median_ae_x': float(median_ae_x),
+        'median_ae_y': float(median_ae_y),
+        'p95_x': float(p95_x),
+        'p95_y': float(p95_y),
+        'r2_x': float(r2_x),
+        'r2_y': float(r2_y),
+        'euclidean_mae': float(euclidean_mae),
+        'euclidean_median': float(euclidean_median),
+        'euclidean_p95': float(euclidean_p95),
+    }
+    
+    # Save error distribution data
+    error_data = {
+        'errors_x': errors[:, 0],
+        'errors_y': errors[:, 1],
+        'abs_errors_x': abs_errors[:, 0],
+        'abs_errors_y': abs_errors[:, 1],
+        'euclidean_errors': euclidean,
+        'true_xy': y_true,
+        'pred_xy': y_pred,
+    }
+    
+    save_dir.mkdir(parents=True, exist_ok=True)
+    error_file = save_dir / f"{model_name}_errors.npz"
+    np.savez_compressed(error_file, **error_data)
+    print(f"Saved error distribution data to {error_file}")
+    
+    # Save spatial error map data (for plotting)
+    spatial_data = {
+        'true_x': y_true[:, 0],
+        'true_y': y_true[:, 1],
+        'pred_x': y_pred[:, 0],
+        'pred_y': y_pred[:, 1],
+        'euclidean_error': euclidean,
+    }
+    spatial_file = save_dir / f"{model_name}_spatial_errors.npz"
+    np.savez_compressed(spatial_file, **spatial_data)
+    print(f"Saved spatial error map data to {spatial_file}")
+    
+    # Save metrics JSON
+    metrics_file = save_dir / f"{model_name}_extended_metrics.json"
+    with open(metrics_file, 'w') as f:
+        json.dump(metrics, f, indent=2)
+    print(f"Saved extended metrics to {metrics_file}")
+    
+    return metrics
+
+
 def evaluate_model(
     model: keras.Model,
     X_test: np.ndarray,
     y_test: np.ndarray,
-    model_name: str
+    model_name: str,
+    extended_metrics: bool = False,
+    save_dir: Optional[Path] = None,
+    metrics_name: Optional[str] = None
 ) -> np.ndarray:
     """
     Evaluate model on test set and print MAE.
@@ -25,6 +118,8 @@ def evaluate_model(
         X_test: Test features
         y_test: Test targets (normalized)
         model_name: Name for logging
+        extended_metrics: If True, compute and save extended metrics
+        save_dir: Directory to save extended metrics (required if extended_metrics=True)
         
     Returns:
         MAE array [x_mae, y_mae]
@@ -33,8 +128,18 @@ def evaluate_model(
     y_true = denormalize_locations(y_test)
     mae = np.mean(np.abs(preds - y_true), axis=0)
     
-    print(f"\n{model_name} - MAE on real test set:")
-    print(f"  X: {mae[0]:.2f}, Y: {mae[1]:.2f}, Mean: {np.mean(mae):.2f}")
+    print(f"\n{model_name} - MAE on real test set:", flush=True)
+    print(f"  X: {mae[0]:.2f}, Y: {mae[1]:.2f}, Mean: {np.mean(mae):.2f}", flush=True)
+    
+    if extended_metrics and save_dir is not None:
+        metrics_file_name = metrics_name if metrics_name is not None else model_name
+        print(f"\nComputing extended metrics for {model_name}...", flush=True)
+        extended = compute_extended_metrics(y_true, preds, save_dir, metrics_file_name)
+        print(f"  MAE:       X={extended['mae_x']:7.2f}, Y={extended['mae_y']:7.2f}, Mean={extended['mae_mean']:7.2f}", flush=True)
+        print(f"  Median AE: X={extended['median_ae_x']:7.2f}, Y={extended['median_ae_y']:7.2f}", flush=True)
+        print(f"  P95:       X={extended['p95_x']:7.2f}, Y={extended['p95_y']:7.2f}", flush=True)
+        print(f"  R²:        X={extended['r2_x']:7.4f}, Y={extended['r2_y']:7.4f}", flush=True)
+        print(f"  Euclidean: MAE={extended['euclidean_mae']:7.2f}, Median={extended['euclidean_median']:7.2f}, P95={extended['euclidean_p95']:7.2f}", flush=True)
     
     return mae
 
@@ -53,6 +158,7 @@ def train_model(
     hidden_dims: List[int],
     run_id: Optional[int] = None,
     random_seed: Optional[int] = None,
+    extended_metrics: bool = False,
 ) -> Tuple[keras.Model, np.ndarray]:
     """
     Train a single model and return it along with evaluation metrics.
@@ -76,10 +182,10 @@ def train_model(
     """
     import tensorflow as tf
     
-    print(f"\n{'='*60}")
-    print(f"Training {model_name}")
+    print(f"\n{'='*60}", flush=True)
+    print(f"Training {model_name}", flush=True)
     if run_id is not None:
-        print(f"Run {run_id}")
+        print(f"Run {run_id}", flush=True)
     print(f"{'='*60}", flush=True)
     
     # Set random seed if provided
@@ -99,17 +205,29 @@ def train_model(
         restore_best_weights=True,
     )
     
-    model.fit(
+    print(f"Starting training: {X_train.shape[0]} samples, {epochs} max epochs, batch_size={batch_size}", flush=True)
+    print("Training in progress... (this may take a while)", flush=True)
+    
+    history = model.fit(
         X_train,
         y_train,
         validation_split=0.1,
         epochs=epochs,
         batch_size=batch_size,
         callbacks=[early_stop],
-        verbose=0,
+        verbose=1,  # Show progress
     )
     
-    mae = evaluate_model(model, X_test, y_test, model_name)
+    epochs_trained = len(history.history['loss'])
+    print(f"Training completed: {epochs_trained} epochs trained", flush=True)
+    
+    # Determine metrics name for extended metrics
+    if run_id is not None:
+        metrics_name = f"{model_name}_run{run_id}"
+    else:
+        metrics_name = model_name
+    
+    mae = evaluate_model(model, X_test, y_test, model_name, extended_metrics, save_dir, metrics_name)
     
     # Save model
     save_dir.mkdir(parents=True, exist_ok=True)
@@ -139,6 +257,7 @@ def train_finetune(
     run_id: Optional[int] = None,
     random_seed: Optional[int] = None,
     pretrained_model_path: Optional[str] = None,
+    extended_metrics: bool = False,
 ) -> Tuple[keras.Model, np.ndarray]:
     """
     Pretrain on synthetic data, then finetune on real data.
@@ -164,11 +283,11 @@ def train_finetune(
     """
     import tensorflow as tf
     
-    print(f"\n{'='*60}")
-    print("FINETUNING MODE")
+    print(f"\n{'='*60}", flush=True)
+    print("FINETUNING MODE", flush=True)
     if run_id is not None:
-        print(f"Run {run_id}")
-    print(f"{'='*60}")
+        print(f"Run {run_id}", flush=True)
+    print(f"{'='*60}", flush=True)
     
     # Set random seed if provided
     if random_seed is not None:
@@ -177,10 +296,10 @@ def train_finetune(
     
     # Step 1: Load pretrained model or train on synthetic data
     if pretrained_model_path is not None and Path(pretrained_model_path).exists():
-        print(f"\nStep 1: Loading pretrained model from {pretrained_model_path}")
+        print(f"\nStep 1: Loading pretrained model from {pretrained_model_path}", flush=True)
         model = keras.models.load_model(pretrained_model_path)
     else:
-        print("\nStep 1: Pretraining on synthetic data")
+        print("\nStep 1: Pretraining on synthetic data", flush=True)
         model = build_model(
             input_dim=X_train_syn.shape[1],
             hidden_dims=hidden_dims,
@@ -193,18 +312,20 @@ def train_finetune(
             restore_best_weights=True,
         )
         
-        model.fit(
+        print(f"Pretraining: {X_train_syn.shape[0]} samples, {epochs} max epochs", flush=True)
+        history_pretrain = model.fit(
             X_train_syn,
             y_train_syn,
             validation_split=0.1,
             epochs=epochs,
             batch_size=batch_size,
             callbacks=[early_stop_pretrain],
-            verbose=0,
+            verbose=1,  # Show progress
         )
+        print(f"Pretraining completed: {len(history_pretrain.history['loss'])} epochs", flush=True)
     
     # Step 2: Finetune on real data (freeze all except last 2 layers)
-    print("\nStep 2: Finetuning on real data")
+    print("\nStep 2: Finetuning on real data", flush=True)
     
     num_layers = len(model.layers)
     for i, layer in enumerate(model.layers):
@@ -224,17 +345,25 @@ def train_finetune(
         restore_best_weights=True,
     )
     
-    model.fit(
+    print(f"Finetuning: {X_train_real.shape[0]} samples, {epochs} max epochs", flush=True)
+    history_finetune = model.fit(
         X_train_real,
         y_train_real,
         validation_split=0.1,
         epochs=epochs,
         batch_size=batch_size,
         callbacks=[early_stop_finetune],
-        verbose=0,
+        verbose=1,  # Show progress
     )
+    print(f"Finetuning completed: {len(history_finetune.history['loss'])} epochs", flush=True)
     
-    mae = evaluate_model(model, X_test, y_test, "finetune")
+    # Determine metrics name for extended metrics
+    if run_id is not None:
+        metrics_name = f"finetune_run{run_id}"
+    else:
+        metrics_name = "finetune"
+    
+    mae = evaluate_model(model, X_test, y_test, "finetune", extended_metrics, save_dir, metrics_name)
     
     # Save model
     save_dir.mkdir(parents=True, exist_ok=True)
@@ -253,6 +382,7 @@ def train_single_mode(
     data: DataDict,
     config: TrainConfig,
     pretrained_syn_model_path: Optional[str] = None,
+    extended_metrics: bool = False,
 ) -> np.ndarray:
     """
     Train a single mode (real, syn, mixed, or finetune) with optional multiple runs.
@@ -285,7 +415,7 @@ def train_single_mode(
                 X_train, y_train, X_test, y_test,
                 "train_on_real", config.learning_rate, config.epochs,
                 config.batch_size, config.patience, models_dir,
-                config.hidden_dims, run_id_arg, random_seed
+                config.hidden_dims, run_id_arg, random_seed, extended_metrics
             )
         elif mode == "syn":
             X_train, y_train = data["train_syn"]
@@ -293,7 +423,7 @@ def train_single_mode(
                 X_train, y_train, X_test, y_test,
                 "train_on_syn", config.learning_rate, config.epochs,
                 config.batch_size, config.patience, models_dir,
-                config.hidden_dims, run_id_arg, random_seed
+                config.hidden_dims, run_id_arg, random_seed, extended_metrics
             )
         elif mode == "mixed":
             X_train, y_train = data["train_mixed"]
@@ -301,7 +431,7 @@ def train_single_mode(
                 X_train, y_train, X_test, y_test,
                 "train_on_mixed", config.learning_rate, config.epochs,
                 config.batch_size, config.patience, models_dir,
-                config.hidden_dims, run_id_arg, random_seed
+                config.hidden_dims, run_id_arg, random_seed, extended_metrics
             )
         elif mode == "finetune":
             X_train_syn, y_train_syn = data["train_syn"]
@@ -321,7 +451,7 @@ def train_single_mode(
                 X_train_syn, y_train_syn, X_train_real, y_train_real,
                 X_test, y_test, config.learning_rate, config.epochs,
                 config.batch_size, config.patience, models_dir,
-                config.hidden_dims, run_id_arg, random_seed, syn_model_path
+                config.hidden_dims, run_id_arg, random_seed, syn_model_path, extended_metrics
             )
         else:
             raise ValueError(f"Unknown mode: {mode}")
@@ -334,14 +464,14 @@ def train_single_mode(
         mae_mean = np.mean(mae_array, axis=0)
         mae_std = np.std(mae_array, axis=0)
         
-        print(f"\n{'='*60}")
-        print(f"STATISTICS FOR {mode.upper()} MODE ({config.n_runs} runs)")
-        print(f"{'='*60}")
-        print(f"MAE (mean ± std):")
-        print(f"  X: {mae_mean[0]:.2f} ± {mae_std[0]:.2f}")
-        print(f"  Y: {mae_mean[1]:.2f} ± {mae_std[1]:.2f}")
-        print(f"  Mean: {np.mean(mae_mean):.2f} ± {np.mean(mae_std):.2f}")
-        print(f"{'='*60}")
+        print(f"\n{'='*60}", flush=True)
+        print(f"STATISTICS FOR {mode.upper()} MODE ({config.n_runs} runs)", flush=True)
+        print(f"{'='*60}", flush=True)
+        print(f"MAE (mean ± std):", flush=True)
+        print(f"  X: {mae_mean[0]:.2f} ± {mae_std[0]:.2f}", flush=True)
+        print(f"  Y: {mae_mean[1]:.2f} ± {mae_std[1]:.2f}", flush=True)
+        print(f"  Mean: {np.mean(mae_mean):.2f} ± {np.mean(mae_std):.2f}", flush=True)
+        print(f"{'='*60}", flush=True)
         
         return mae_mean
     

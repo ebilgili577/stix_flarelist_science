@@ -10,6 +10,7 @@ setup(
             "stix-train=stix_train.cli:main",
             "stix-submit=stix_train.submit:main",
             "stix-fetch=generate_flarelist.cli:main",
+            "stix-plot=stix_train.plot_results:main",
         ],
     },
     install_requires=[

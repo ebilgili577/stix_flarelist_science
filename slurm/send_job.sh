@@ -1,10 +1,9 @@
 #!/bin/bash
 #SBATCH --partition=performance
-#SBATCH --gpus=1
+#SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=8
-#SBATCH --mem=16G
-#SBATCH --time=24:00:00
-#SBATCH --nodelist=calc-g-006
+#SBATCH --mem=12G
+#SBATCH --time=08:00:00
 
 
 echo "=========================================="
@@ -13,8 +12,11 @@ echo "Running: stix-train $@"
 echo "Start time: $(date)"
 echo "=========================================="
 
-# Change to project directory 
-cd ~/stix_flarelist_science
+# Change to project directory (use absolute path from script location)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$PROJECT_DIR"
+echo "Working directory: $PROJECT_DIR"
 
 # Initialize conda
 eval "$(conda shell.bash hook)"
@@ -31,3 +33,4 @@ echo "Exit code: $EXIT_CODE"
 echo "=========================================="
 
 exit $EXIT_CODE
+

@@ -6,6 +6,9 @@ dependencies:
   - python>=3.11
   - scikit-learn
   - pip
+  - tensorflow
+  - cudatoolkit
+  - cudnn
   - pip:
-    - tensorflow[and-cuda]
+    - nvidia-cudnn-cu12
 
