@@ -109,8 +109,11 @@ def load_data(syn_data_path: Optional[str], x_fov: float, y_fov: float, sidelobe
         "test_real": (X_test_r, y_test_r),
     }
     
-    print(f"Real training set shape: {X_train_r.shape}")
-    print(f"Real test set shape: {X_test_r.shape}")
+    print(f"Real training set X shape: {X_train_r.shape}")
+    print(f"Real training set y shape: {y_train_r.shape}")
+
+    print(f"Real test set shape X: {X_test_r.shape}")
+    print(f"Real test set shape y: {y_test_r.shape}")
     
     # Load synthetic data if path is provided
     if syn_data_path is not None:
