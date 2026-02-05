@@ -2,8 +2,6 @@ from typing import Dict, Tuple, Optional
 
 import numpy as np
 import pandas as pd
-import simulator.simulate_data as simulate_data
-
 from sklearn.model_selection import train_test_split
 
 
@@ -38,7 +36,8 @@ def denormalize_locations(y: np.ndarray) -> np.ndarray:
 
 def ensure_synthetic_data(n_samples: int, fov_big: int) -> str:
     """
-    Ensure synthetic data exists, generate if not.
+    Ensure synthetic data exists. Expects data to be generated externally using
+    the stix-data-generator repository: https://github.com/i4Ds/stix-data-generator
     
     Args:
         n_samples: Number of synthetic samples
@@ -46,18 +45,22 @@ def ensure_synthetic_data(n_samples: int, fov_big: int) -> str:
         
     Returns:
         Path to synthetic data file
+        
+    Raises:
+        FileNotFoundError: If the synthetic data file does not exist
     """
     
     filepath = SYNTHETIC_DATA_DIR / f"sim_{n_samples}_{fov_big}.npz"
     
     if not filepath.exists():
-        print(f"Generating synthetic data: {n_samples} samples, fov_big={fov_big}")
-        print("This may take a while...")
-        simulate_data.sim_data(n_samples=n_samples, fov_big=fov_big)
-        print(f"Synthetic data saved to {filepath}")
-    else:
-        print(f"Using existing synthetic data: {filepath}")
+        raise FileNotFoundError(
+            f"Synthetic data file not found: {filepath}\n"
+            f"Please generate synthetic data using the stix-data-generator repository:\n"
+            f"https://github.com/i4Ds/stix-data-generator\n"
+            f"Expected file: sim_{n_samples}_{fov_big}.npz in data/synthetic/"
+        )
     
+    print(f"Using existing synthetic data: {filepath}")
     return str(filepath)
 
 
