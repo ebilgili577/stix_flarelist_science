@@ -9,6 +9,7 @@ setup(
         "console_scripts": [
             "stix-train=stix_train.cli:main",
             "stix-submit=stix_train.submit:main",
+            "stix-test=stix_train.test_cli:main",
             "stix-fetch=generate_flarelist.cli:main",
             "stix-plot=stix_train.plot_results:main",
         ],

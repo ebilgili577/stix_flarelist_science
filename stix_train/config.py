@@ -2,11 +2,13 @@ from dataclasses import dataclass, asdict, field
 from pathlib import Path
 from typing import List
 
-# Data paths
+# Project root: stix_flarelist_science/
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
-REAL_DATA_PATH = Path("data/6_final/stix_flarelist_final_20210214_20250830.csv")
-SYNTHETIC_DATA_DIR = Path("data/synthetic")
-EXPERIMENTS_DIR = Path("experiments")
+# Data paths (absolute, independent of working directory)
+REAL_DATA_PATH = PROJECT_ROOT / "data" / "6_final" / "stix_flarelist_final_20210214_20250830.csv"
+SYNTHETIC_DATA_DIR = PROJECT_ROOT / "data" / "synthetic"
+EXPERIMENTS_DIR = PROJECT_ROOT / "experiments"
 
 # Data constants
 
@@ -54,9 +56,9 @@ class TrainConfig:
     col_count: int = 12
     sidelobes_threshold: float = 0.84
     n_samples: int = 1_000_000
-    fov_big: int = 4400
-    x_fov: float = 2200.0
-    y_fov: float = 1800.0
+    fov_big: int = 7200
+    x_fov: float = 99999.0
+    y_fov: float = 99999.0
     learning_rate: float = 1e-3
     epochs: int = 1000
     batch_size: int = 512

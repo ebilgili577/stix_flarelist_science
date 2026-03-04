@@ -2,8 +2,6 @@ from typing import Dict, Tuple, Optional
 
 import numpy as np
 import pandas as pd
-import simulator.simulate_data as simulate_data
-
 from sklearn.model_selection import train_test_split
 
 
@@ -23,7 +21,9 @@ DataDict = Dict[str, Tuple[np.ndarray, np.ndarray]]
 
 def normalize_counts(X: np.ndarray) -> np.ndarray:
     """Normalize detector counts by event maximum count."""
-    return X / X.max(axis=1, keepdims=True)
+    row_max = X.max(axis=1, keepdims=True)
+    row_max[row_max == 0] = 1.0
+    return X / row_max
 
 
 def normalize_locations(y: np.ndarray) -> np.ndarray:
@@ -38,7 +38,8 @@ def denormalize_locations(y: np.ndarray) -> np.ndarray:
 
 def ensure_synthetic_data(n_samples: int, fov_big: int) -> str:
     """
-    Ensure synthetic data exists, generate if not.
+    Ensure synthetic data exists. Expects data to be generated externally using
+    the stix-data-generator repository: https://github.com/i4Ds/stix-data-generator
     
     Args:
         n_samples: Number of synthetic samples
@@ -46,18 +47,22 @@ def ensure_synthetic_data(n_samples: int, fov_big: int) -> str:
         
     Returns:
         Path to synthetic data file
+        
+    Raises:
+        FileNotFoundError: If the synthetic data file does not exist
     """
     
     filepath = SYNTHETIC_DATA_DIR / f"sim_{n_samples}_{fov_big}.npz"
     
     if not filepath.exists():
-        print(f"Generating synthetic data: {n_samples} samples, fov_big={fov_big}")
-        print("This may take a while...")
-        simulate_data.sim_data(n_samples=n_samples, fov_big=fov_big)
-        print(f"Synthetic data saved to {filepath}")
-    else:
-        print(f"Using existing synthetic data: {filepath}")
+        raise FileNotFoundError(
+            f"Synthetic data file not found: {filepath}\n"
+            f"Please generate synthetic data using the stix-data-generator repository:\n"
+            f"https://github.com/i4Ds/stix-data-generator\n"
+            f"Expected file: sim_{n_samples}_{fov_big}.npz in data/synthetic/"
+        )
     
+    print(f"Using existing synthetic data: {filepath}")
     return str(filepath)
 
 
@@ -109,8 +114,11 @@ def load_data(syn_data_path: Optional[str], x_fov: float, y_fov: float, sidelobe
         "test_real": (X_test_r, y_test_r),
     }
     
-    print(f"Real training set shape: {X_train_r.shape}")
-    print(f"Real test set shape: {X_test_r.shape}")
+    print(f"Real training set X shape: {X_train_r.shape}")
+    print(f"Real training set y shape: {y_train_r.shape}")
+
+    print(f"Real test set shape X: {X_test_r.shape}")
+    print(f"Real test set shape y: {y_test_r.shape}")
     
     # Load synthetic data if path is provided
     if syn_data_path is not None:
@@ -122,13 +130,22 @@ def load_data(syn_data_path: Optional[str], x_fov: float, y_fov: float, sidelobe
         
         print(f"Filtering synthetic data by FOV: x_fov={x_fov}, y_fov={y_fov}")
         # Filter by FOV
-        mask = (
+        fov_mask = (
             (y_syn[:, 0] > -x_fov) & (y_syn[:, 0] < x_fov) &
             (y_syn[:, 1] > -y_fov) & (y_syn[:, 1] < y_fov)
         )
-        X_syn = X_syn[mask]
-        y_syn = y_syn[mask]
-        
+        X_syn = X_syn[fov_mask]
+        y_syn = y_syn[fov_mask]
+        print(f"After FOV filter: {len(X_syn)} samples")
+
+        # Drop samples with all-zero counts (outside any usable FOV)
+        nonzero_mask = X_syn.max(axis=1) > 0
+        n_dropped = (~nonzero_mask).sum()
+        if n_dropped > 0:
+            print(f"Dropping {n_dropped} all-zero samples (outside usable FOV)")
+        X_syn = X_syn[nonzero_mask]
+        y_syn = y_syn[nonzero_mask]
+
         print("Normalizing synthetic data...")
         X_syn_norm = normalize_counts(X_syn)
         y_syn_norm = normalize_locations(y_syn)

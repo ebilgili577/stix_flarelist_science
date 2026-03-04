@@ -11,23 +11,11 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 
 import argparse
-import sys
-from pathlib import Path
-from typing import List
-import numpy as np
+from typing import List, Optional
 
 from .config import TrainConfig, EXPERIMENTS_DIR
 from .data import load_data, ensure_synthetic_data
 from .training import train_single_mode, save_experiment_config
-
-
-def get_project_root() -> Path:
-    """Get the project root directory (where setup.py is located)."""
-    # Get the directory of this file
-    current_file = Path(__file__).resolve()
-    # Go up from stix_train/cli.py to stix_flarelist_science/
-    project_root = current_file.parent.parent
-    return project_root
 
 
 def parse_args() -> TrainConfig:
@@ -36,9 +24,9 @@ def parse_args() -> TrainConfig:
     
     parser.add_argument("--experiment", type=str, required=True, help="Experiment name")
     parser.add_argument("--n-samples", type=int, default=1_000_000, help="Number of synthetic samples")
-    parser.add_argument("--fov-big", type=int, default=4400, help="FOV_big for synthetic data")
-    parser.add_argument("--x-fov", type=float, default=2200.0, help="X FOV bound")
-    parser.add_argument("--y-fov", type=float, default=1800.0, help="Y FOV bound")
+    parser.add_argument("--fov-big", type=int, default=7200, help="FOV_big for synthetic data")
+    parser.add_argument("--x-fov", type=float, default=99999.0, help="X FOV bound (99999 = no filter)")
+    parser.add_argument("--y-fov", type=float, default=99999.0, help="Y FOV bound (99999 = no filter)")
     parser.add_argument("--lr", type=float, default=1e-3, help="Learning rate")
     parser.add_argument("--epochs", type=int, default=1000, help="Number of epochs")
     parser.add_argument("--batch", type=int, default=512, help="Batch size")
@@ -50,11 +38,6 @@ def parse_args() -> TrainConfig:
         choices=["real", "syn", "mixed", "finetune", "all"],
         help="Training mode"
     )
-    parser.add_argument(
-        "--no-finetune",
-        action="store_true",
-        help="Train all modes except finetune (equivalent to --mode all but excluding finetune)"
-    )
     parser.add_argument("--n-runs", type=int, default=1, help="Number of runs for statistics")
     parser.add_argument("--col-count", type=int, default=12, help="How many subcols to use")
     parser.add_argument("--sidelobes-threshold", type=float, default=0.84, help="Sidelobes threshold")
@@ -64,18 +47,13 @@ def parse_args() -> TrainConfig:
         default="1024,512,256,128,64",
         help="Comma-separated list of hidden layer sizes (e.g., '1024,512,256,128,64')"
     )
-    parser.add_argument(
-        "--extended-metrics",
-        action="store_true",
-        help="Compute and save extended metrics (q95, error distribution, spatial error map)"
-    )
     
     args = parser.parse_args()
     
     # Parse hidden_dims string to list
     hidden_dims_list = [int(x.strip()) for x in args.hidden_dims.split(",")]
     
-    config = TrainConfig(
+    return TrainConfig(
         experiment=args.experiment,
         mode=args.mode,
         n_samples=args.n_samples,
@@ -91,38 +69,47 @@ def parse_args() -> TrainConfig:
         sidelobes_threshold=args.sidelobes_threshold,
         hidden_dims=hidden_dims_list
     )
-    
-    return config, args
+
+
+def validate_paths(config: TrainConfig, modes_to_train: list) -> Optional[str]:
+    """
+    Validate that all required data files exist before starting heavy work.
+    Returns the synthetic data path if needed, None otherwise.
+    Raises FileNotFoundError early if anything is missing.
+    """
+    from .config import REAL_DATA_PATH, SYNTHETIC_DATA_DIR
+
+    if not REAL_DATA_PATH.exists():
+        raise FileNotFoundError(
+            f"Real data file not found: {REAL_DATA_PATH}\n"
+            f"Expected at: {REAL_DATA_PATH}"
+        )
+
+    needs_synthetic = any(m in ["syn", "mixed", "finetune"] for m in modes_to_train)
+    if needs_synthetic:
+        return ensure_synthetic_data(config.n_samples, config.fov_big)
+    return None
 
 
 def main():
     """Main entry point for stix-train command."""
-    # Change to project root directory
-    project_root = get_project_root()
-    os.chdir(project_root)
-    
     print("[DEBUG] Starting stix-train", flush=True)
-    print(f"[DEBUG] Working directory: {project_root}", flush=True)
     
     # Parse arguments
-    config, args = parse_args()
-    extended_metrics = args.extended_metrics
+    config = parse_args()
     print(f"[DEBUG] Parsed config: {config}", flush=True)
-    print(f"[DEBUG] Extended metrics: {extended_metrics}", flush=True)
     
     # Determine which modes to train
-    if args.no_finetune:
-        modes_to_train = ["real", "syn", "mixed"]
-    elif config.mode == "all":
+    if config.mode == "all":
         modes_to_train = ["real", "syn", "mixed", "finetune"]
     else:
         modes_to_train = [config.mode]
     
-    # Load synthetic data if needed
-    needs_synthetic = any(m in ["syn", "mixed", "finetune"] for m in modes_to_train)
-    syn_data_path = None
-    if needs_synthetic:
-        syn_data_path = ensure_synthetic_data(config.n_samples, config.fov_big)
+    # Validate all paths early (before importing TensorFlow)
+    syn_data_path = validate_paths(config, modes_to_train)
+    
+    # Save config immediately so it persists even if training crashes
+    save_experiment_config(config, syn_data_path)
     
     # Load data
     print("[DEBUG] Loading data...", flush=True)
@@ -136,7 +123,7 @@ def main():
     for mode in modes_to_train:
         pretrained_path = syn_model_path if mode == "finetune" else None
         
-        mae = train_single_mode(mode, data, config, pretrained_path, extended_metrics)
+        mae = train_single_mode(mode, data, config, pretrained_path)
         results[mode] = mae
         
         # Track syn model path for finetune reuse
@@ -150,59 +137,20 @@ def main():
     # Print comparison if multiple modes
     if len(modes_to_train) > 1:
         print("\n" + "=" * 60)
-        print("FINAL COMPARISON (MAE on real test set)")
+        print("FINAL COMPARISON (on real test set)")
         print("=" * 60)
-        for name, mae in results.items():
-            if isinstance(mae, np.ndarray) and len(mae.shape) == 1:
-                print(f"{name:10s}: X={mae[0]:7.2f}, Y={mae[1]:7.2f}, Mean={np.mean(mae):7.2f}")
-            else:
-                print(f"{name:10s}: {mae}")
+        print(f"{'Mode':10s}  {'MAE_X':>8s}  {'MAE_Y':>8s}  {'MAE':>8s}  {'Eucl':>8s}  {'Q95':>8s}")
+        print("-" * 60)
+        for name, m in results.items():
+            print(f"{name:10s}  {m['mae_x']:8.2f}  {m['mae_y']:8.2f}  "
+                  f"{m['mae_mean']:8.2f}  {m.get('euclidean_mean', 0):8.2f}  "
+                  f"{m.get('euclidean_q95', 0):8.2f}")
         
-        if config.n_runs == 1:
-            best_name = min(results.keys(), key=lambda k: np.mean(results[k]))
-            print(f"\nBest method: {best_name} (mean MAE: {np.mean(results[best_name]):.2f})")
+        best_name = min(results.keys(), key=lambda k: results[k].get("euclidean_mean", float("inf")))
+        print(f"\nBest method: {best_name} "
+              f"(Eucl mean: {results[best_name].get('euclidean_mean', 0):.2f}, "
+              f"MAE mean: {results[best_name]['mae_mean']:.2f})")
     
-    # Save configuration
-    save_experiment_config(config, syn_data_path)
-    
-    # Check if plots should be generated automatically
-    plot_config_path = EXPERIMENTS_DIR / config.experiment / "plot_config.json"
-    if plot_config_path.exists():
-        print("\n" + "=" * 60)
-        print("Generating plots automatically...")
-        print("=" * 60)
-        try:
-            from .plot_results import create_comparison_plot, find_available_modes
-            import json
-            
-            exp_dir = EXPERIMENTS_DIR / config.experiment
-            
-            # Load plot config
-            with open(plot_config_path, 'r') as f:
-                plot_config = json.load(f)
-            
-            n_runs = plot_config.get("n_runs", config.n_runs)
-            
-            # Find all available modes
-            available_modes = find_available_modes(exp_dir)
-            if not available_modes:
-                print("No metrics found. Skipping plot generation.")
-                return
-            
-            output_dir = exp_dir / "plots"
-            output_dir.mkdir(parents=True, exist_ok=True)
-            
-            # Create comparison plot with all modes
-            # Don't auto-generate metrics in automatic plot generation (user can run manually with --generate-metrics)
-            create_comparison_plot(exp_dir, available_modes, n_runs, output_dir, generate_if_missing=False)
-            
-            print(f"\nPlots saved to: {output_dir}/comparison_performance.png")
-        except Exception as e:
-            import traceback
-            print(f"\nWarning: Failed to generate plots automatically: {e}")
-            traceback.print_exc()
-            print(f"\nYou can generate them manually by running:")
-            print(f"  python -m stix_train.plot_results {config.experiment}")
 
 
 if __name__ == "__main__":
