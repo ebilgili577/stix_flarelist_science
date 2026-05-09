@@ -26,7 +26,7 @@ def get_sim_parameters():
 
     return u, v, sf, sr, pf, pr, phase_corr, pixel_area, pixel_phase_factor
 
-def sim_data(n_samples: int, fov_big: int, add_noise: bool = True, fov: int = 257 , n_sources: int = 1):
+def sim_data(n_samples: int, x_min, x_max, y_min, y_max, add_noise: bool = True , n_sources: int = 1):
     u, v, sf, sr, pf, pr, phase_corr, pixel_area, pixel_phase_factor = get_sim_parameters()
     X = []
     Y = []
@@ -41,8 +41,8 @@ def sim_data(n_samples: int, fov_big: int, add_noise: bool = True, fov: int = 25
 
     for i in range(n_samples):
         this_xc, this_yc, this_FWHM_max, this_FWHM_min, this_flux, this_orientation, this_mapcenter, this_counts, this_counts_err = sm.SimulateConfig(
-            n_sources, u, v, sf, sr, pf, pr, phase_corr, pixel_area, pixel_phase_factor, add_noise=add_noise, fov=fov,
-            fov_big=fov_big)
+            n_sources, u, v, sf, sr, pf, pr, phase_corr, pixel_area, pixel_phase_factor, add_noise=add_noise, x_min=x_min, x_max=x_max, y_min=y_min, y_max=y_max
+            )
 
         xc.append(this_xc)
         yc.append(this_yc)
@@ -69,12 +69,12 @@ def sim_data(n_samples: int, fov_big: int, add_noise: bool = True, fov: int = 25
 
 
 
-    save_data(X=X,Y=Y,xc=xc,yc=yc,FWHM_max=FWHM_max,FWHM_min=FWHM_min,flux=flux,orientation=orientation,mapcenter=mapcenter, n_samples=n_samples, fov_big=fov_big)
+    save_data(X=X,Y=Y,xc=xc,yc=yc,FWHM_max=FWHM_max,FWHM_min=FWHM_min,flux=flux,orientation=orientation,mapcenter=mapcenter, n_samples=n_samples, x_min=x_min, x_max=x_max, y_min=y_min, y_max=y_max)
 
 
-def save_data(X, Y, xc, yc, FWHM_max, FWHM_min, flux, orientation, mapcenter, n_samples, fov_big):
+def save_data(X, Y, xc, yc, FWHM_max, FWHM_min, flux, orientation, mapcenter, n_samples, x_min, x_max, y_min, y_max):
     os.makedirs(OUT_FOLDER, exist_ok=True)
-    np.savez(os.path.join(OUT_FOLDER, f'sim_{n_samples}_{fov_big}.npz'), X=X, Y=Y, xc=xc, yc=yc, FWHM_max=FWHM_max,
+    np.savez(os.path.join(OUT_FOLDER, f'sim_{n_samples}_x{x_min}-{x_max}_y{y_min}-{y_max}.npz'), X=X, Y=Y, xc=xc, yc=yc, FWHM_max=FWHM_max,
              FWHM_min=FWHM_min, flux=flux, orientation=orientation, mapcenter=mapcenter)
 
 
@@ -89,16 +89,44 @@ def main():
         help="Number of simulated samples",
     )
     parser.add_argument(
-        "--fov_big",
+        "--x_min",
         type=int,
         required=True,
-        help="FOV_big value for the simulation",
+        help="FOV_x min value",
+    )
+    parser.add_argument(
+        "--x_max",
+        type=int,
+        required=True,
+        help="FOV_x max value",
+    )
+    # TODO: Update doc
+    parser.add_argument(
+        "--y_min",
+        type=int,
+        required=True,
+        help="FOV_y min value",
+    )
+    parser.add_argument(
+        "--y_max",
+        type=int,
+        required=True,
+        help="FOV_y max value",
+    )
+    parser.add_argument(
+        "--noise",
+        type=int,
+        choices=[0, 1],
+        default=1,
+        required=False,
+        help="1 = add noise, 0 = no noise (default: 1)",
     )
 
     args = parser.parse_args()
+    add_noise = bool(args.noise)
 
 
-    filename = f"sim_{args.n_samples}_{args.fov_big}.npz"
+    filename = f"sim_{args.n_samples}_x{args.x_min}-{args.x_max}_y{args.y_min}-{args.y_max}.npz"
     out_path = os.path.join(OUT_FOLDER, filename)
 
     if os.path.exists(out_path):
@@ -107,11 +135,17 @@ def main():
 
     print(
         f"Simulating data with n_samples={args.n_samples}, "
-        f"fov_big={args.fov_big}"
+        f"fov_x_range={args.x_min}-{args.x_max}, "
+        f"fov_y_range={args.y_min}-{args.y_max}",
+        f"adding noise: {add_noise}",
     )
     sim_data(
         n_samples=args.n_samples,
-        fov_big=args.fov_big,
+        x_min=args.x_min,
+        x_max=args.x_max,
+        y_min=args.y_min,
+        y_max=args.y_max,
+        add_noise=add_noise,
     )
     print("Simulation finished and data saved.")
 

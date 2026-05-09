@@ -258,43 +258,43 @@ def ComputeCountsConfig(xc, yc, FWHM_max, FWHM_min, flux, angle, u, v,
     
     A,B,C,D = ComputeCountsGaussian(xc, yc, FWHM_max, FWHM_min, flux, angle, u, v,
                                     sf, sr, pf, pr, phase_corr, pixel_area, pixel_phase_factor)
+    ## right here shadowing
+    A_top_sh, A_bot_sh, B_top_sh, B_bot_sh, C_top_sh, C_bot_sh, D_top_sh, D_bot_sh = apply_top_bot_shadowing(yc, A, B, C, D)
     
     if add_noise:
-        
+
         # TOP pixels
-        cond_add_noise=True
-        
+        cond_add_noise = True
+
         while cond_add_noise:
-        
-            A_top = np.random.poisson(A).astype('float64')
-            B_top = np.random.poisson(B).astype('float64')
-            C_top = np.random.poisson(C).astype('float64')
-            D_top = np.random.poisson(D).astype('float64')
-            
+
+            A_top = np.random.poisson(A_top_sh).astype('float64')
+            B_top = np.random.poisson(B_top_sh).astype('float64')
+            C_top = np.random.poisson(C_top_sh).astype('float64')
+            D_top = np.random.poisson(D_top_sh).astype('float64')
+
             cond_add_noise = (((C_top-A_top) == 0) & ((D_top-B_top) == 0)).any()
 
         # BOTTOM pixels
-        cond_add_noise=True
-        
+        cond_add_noise = True
+
         while cond_add_noise:
-        
-            A_bot = np.random.poisson(A).astype('float64')
-            B_bot = np.random.poisson(B).astype('float64')
-            C_bot = np.random.poisson(C).astype('float64')
-            D_bot = np.random.poisson(D).astype('float64')
-            
+
+            A_bot = np.random.poisson(A_bot_sh).astype('float64')
+            B_bot = np.random.poisson(B_bot_sh).astype('float64')
+            C_bot = np.random.poisson(C_bot_sh).astype('float64')
+            D_bot = np.random.poisson(D_bot_sh).astype('float64')
+
             cond_add_noise = (((C_bot-A_bot) == 0) & ((D_bot-B_bot) == 0)).any()
     else:
-        
-        A_top = A
-        B_top = B
-        C_top = C
-        D_top = D
-
-        A_bot = A
-        B_bot = B
-        C_bot = C
-        D_bot = D
+        A_top = A_top_sh
+        A_bot = A_bot_sh
+        B_top = B_top_sh
+        B_bot = B_bot_sh
+        C_top = C_top_sh
+        C_bot = C_bot_sh
+        D_top = D_top_sh
+        D_bot = D_bot_sh
 
     # TOP pixels
     dA_top = np.sqrt(A_top)
@@ -347,10 +347,10 @@ def generate_powerlaw(x_min, x_max, alpha, n_samples=1):
 
     return F_y
 
-def SimulateConfig(n_sources, u, v, sf, sr, pf, pr, phase_corr, pixel_area, pixel_phase_factor,
+def SimulateConfig(n_sources, u, v, sf, sr, pf, pr, phase_corr, pixel_area, pixel_phase_factor,x_min, x_max, y_min, y_max,
                    add_noise = False, fov = 257., FWHM_max_min = 10, FWHM_max_max_1 = 100, 
                    FWHM_max_max_2 = 50, ecc_min = 0.3, dist_min = 25, dist_max = 120, 
-                   flux_min = 1000, flux_max = 1200000, alpha_flux = 2, dynamic_range = 0.3, fov_big = 2000):
+                   flux_min = 1000, flux_max = 1200000, alpha_flux = 2, dynamic_range = 0.3):
     """
     Function for simulating the visibility values corresponding to a random configuration
     consisting of several Gaussian sources
@@ -430,6 +430,7 @@ def SimulateConfig(n_sources, u, v, sf, sr, pf, pr, phase_corr, pixel_area, pixe
         Minimum value of the ratio between the flux of the first simulated source and the flux of the other sources
         (if n_sources > 1). Default, 0.3
 
+    # TODO: Update doc
     fov_big: float
         Size of the field of view where the sources are simulated
     
@@ -452,8 +453,8 @@ def SimulateConfig(n_sources, u, v, sf, sr, pf, pr, phase_corr, pixel_area, pixe
     sigamp: array containing the estimated std of the stochastic error affecting the visibility amplitudes.
     """
     
-    center_x = np.random.uniform(low=-fov_big/2, high=fov_big/2)
-    center_y = np.random.uniform(low=-fov_big/2, high=fov_big/2)
+    center_x = np.random.uniform(low=x_min, high=x_max)
+    center_y = np.random.uniform(low=y_min, high=y_max)
 
     if n_sources == 1:
     
@@ -467,8 +468,8 @@ def SimulateConfig(n_sources, u, v, sf, sr, pf, pr, phase_corr, pixel_area, pixe
         FWHM_max.append(np.random.uniform(low=FWHM_max_min, high=FWHM_max_max_1))
         FWHM_min.append(np.random.uniform(low=max([FWHM_max_min,FWHM_max[0]*ecc_min]), high=FWHM_max[0]))
         
-        xc.append(np.random.uniform(low=-fov/2.+3./2.*FWHM_max[0], high=fov/2.-3./2.*FWHM_max[0]) + center_x)
-        yc.append(np.random.uniform(low=-fov/2.+3./2.*FWHM_max[0], high=fov/2.-3./2.*FWHM_max[0]) + center_y)
+        xc.append(center_x)
+        yc.append(center_y)
 
         flux.append(generate_powerlaw(flux_min, flux_max, alpha_flux))
         
@@ -631,3 +632,98 @@ def CountsMatrix(u, v, sf, sr, pf, pr, phase_corr, pixel_area, pixel_phase_facto
     
     return C_matrix
 
+
+def apply_top_bot_shadowing(yc, A: np.typing.NDArray, B: np.typing.NDArray, C: np.typing.NDArray, D: np.typing.NDArray):
+    """
+    Applies shadowing for detectors given the coordiante of the xray source yc
+
+    This assumes the xray source is within the single row regime defined in paper #stix concept
+
+    So all columns will be fully illuminated, only top and bottom shadowing will be calculated.
+
+    A B C D each have shape (24,)
+
+    """
+
+    D, h_win, h_det = InstrumentMeasurements()
+
+    y_min, y_max = get_regime()
+
+ 
+    # 1. convert arcsec to radians
+    y_rad = np.deg2rad(yc/3600)
+
+    # 2. calculate how much the window has moved in y direction
+    dy = np.tan(y_rad) * D
+
+
+    # 3. calculate the vertical overlap of the window with the detector
+    window_bot_border_y = dy - h_win/2
+    window_top_border_y = dy + h_win/2
+
+    top_edges_y = (h_det/2, window_top_border_y)
+    bot_edges_y = (-h_det/2, window_bot_border_y)
+
+
+    overlap_y = max(0, min(top_edges_y) - max(bot_edges_y) )
+
+    # 4. get ratio of row
+    partial_overlap_y = overlap_y - h_det/2
+
+    # illumination ratio
+    fraction = partial_overlap_y / (h_det/2)
+
+    
+    # y_max 3477,   y_min 1879
+    # we are in single row top regime, bot is more illuminated than top
+    if yc < y_max and yc > y_min: 
+        A_top, B_top, C_top, D_top = A * fraction, B * fraction, C * fraction, D * fraction
+        A_bot, B_bot, C_bot, D_bot = A, B, C, D
+
+    # single row bot regime, top is more illuminated than bot
+    elif yc < -y_min and yc > -y_max:
+        A_bot, B_bot, C_bot, D_bot = A * fraction, B * fraction, C * fraction, D * fraction
+        A_top, B_top, C_top, D_top = A, B, C, D
+
+    # else no shadowing
+    else:
+        A_top, B_top, C_top, D_top, A_bot, B_bot, C_bot, D_bot = A, B, C, D, A, B, C , D
+
+
+    return A_top, A_bot, B_top, B_bot, C_top, C_bot, D_top, D_bot
+
+
+def InstrumentMeasurements():
+    """ 
+    Instrument measurements
+    """
+
+    # instrument measurements
+    d_sep = 545.30
+    d_det = 47.7
+    D_tot = d_sep + d_det
+
+
+    # height of window (projection)
+    h_win = 20
+    w_win = 22
+
+
+    # height of detector
+    h_det = 9.2
+    w_det = 8.8
+
+    return D_tot, h_win, h_det
+
+
+def get_regime():
+    """
+    returns the min anx max y value where min one row is fully illuminated (single row bot/top)
+    """
+
+    D, h_win, h_det = InstrumentMeasurements()
+
+    yc_min = np.degrees(np.arctan2(h_win/2 - h_det/2, D)) * 3600
+    yc_max = np.degrees(np.arctan2(h_win/2, D)) * 3600
+
+    return yc_min, yc_max
