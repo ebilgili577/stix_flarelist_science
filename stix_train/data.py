@@ -2,13 +2,13 @@ from typing import Dict, Tuple, Optional
 
 import numpy as np
 import pandas as pd
-import simulator.simulate_data as simulate_data
-
 from sklearn.model_selection import train_test_split
+import simulator.simulate_data as simulate_data
 
 
 from .config import (
     REAL_DATA_PATH,
+    UNSEEN_DATA_PATH,
     SYNTHETIC_DATA_DIR,
     NORMALIZATION_FACTOR,
     TEST_SPLIT,
@@ -36,9 +36,10 @@ def denormalize_locations(y: np.ndarray) -> np.ndarray:
     return y * NORMALIZATION_FACTOR
 
 
-def ensure_synthetic_data(n_samples: int, fov_big: int) -> str:
+def ensure_synthetic_data(n_samples: int, min_x: int, min_y:int, max_x:int, max_y:int) -> str:
     """
-    Ensure synthetic data exists, generate if not.
+    Ensure synthetic data exists. Expects data to be generated externally using
+    the stix-data-generator repository: https://github.com/i4Ds/stix-data-generator
     
     Args:
         n_samples: Number of synthetic samples
@@ -48,20 +49,29 @@ def ensure_synthetic_data(n_samples: int, fov_big: int) -> str:
         Path to synthetic data file
     """
     
-    filepath = SYNTHETIC_DATA_DIR / f"sim_{n_samples}_{fov_big}.npz"
+    filepath = SYNTHETIC_DATA_DIR / f"sim_{n_samples}_x{min_x}-{max_x}_y{min_y}-{max_y}.npz"
     
     if not filepath.exists():
-        print(f"Generating synthetic data: {n_samples} samples, fov_big={fov_big}")
-        print("This may take a while...")
-        simulate_data.sim_data(n_samples=n_samples, fov_big=fov_big)
-        print(f"Synthetic data saved to {filepath}")
+            print(f"Generating synthetic data: {n_samples} samples, x_range={min_x}-{max_y}, y_range={min_y}-{max_y}")
+            print("This may take a while...")
+            simulate_data.sim_data(n_samples=n_samples, x_min=min_x, x_max=max_x, y_min=min_y, y_max=max_y )
+            print(f"Synthetic data saved to {filepath}")
     else:
         print(f"Using existing synthetic data: {filepath}")
     
     return str(filepath)
 
 
-def load_data(syn_data_path: Optional[str], x_fov: float, y_fov: float, sidelobes_threshold: float, col_count: int = None) -> DataDict:
+def load_data(
+    syn_data_path: Optional[str],
+    x_min: float,
+    x_max: float,
+    y_min: float,
+    y_max: float,
+    sidelobes_threshold: float,
+    col_count: int = None,
+    unseen: bool = False,
+) -> DataDict:
     """
     Load and prepare datasets.
     
@@ -71,6 +81,7 @@ def load_data(syn_data_path: Optional[str], x_fov: float, y_fov: float, sidelobe
         y_fov: Y FOV bound for filtering (absolute value)
         sidelobes_threshold: Threshold for sidelobes ratio filtering
         col_count: Number of detectors to use (e.g., 12 or 24). If None, uses all 24.
+        unseen: If True, also load unseen holdout data as test_unseen.
     Returns:
         Dictionary with train/test splits for real, synthetic, and mixed data
     """
@@ -83,10 +94,10 @@ def load_data(syn_data_path: Optional[str], x_fov: float, y_fov: float, sidelobe
     df = df_raw[df_raw['sidelobes_ratio'] < sidelobes_threshold]
     print(f"Filtered sidelobes data: {len(df)} events")
     # Filter by FOV
-    print(f"Filtering by FOV: x_fov={x_fov}, y_fov={y_fov}")
+    print(f"Filtering by FOV: x_range={x_min}-{x_max}, y_range={y_min}-{y_max}")
     df_filtered = df[
-        (df["loc_x_stix"] > -x_fov) & (df["loc_x_stix"] < x_fov) &
-        (df["loc_y_stix"] > -y_fov) & (df["loc_y_stix"] < y_fov)
+        (df["loc_x_stix"] > x_min) & (df["loc_x_stix"] < x_max) &
+        (df["loc_y_stix"] > y_min) & (df["loc_y_stix"] < y_max)
     ]
     print(f"Filtered FOV data: {len(df_filtered)} events")
     feature_cols = get_feature_columns(col_count)
@@ -114,6 +125,31 @@ def load_data(syn_data_path: Optional[str], x_fov: float, y_fov: float, sidelobe
 
     print(f"Real test set shape X: {X_test_r.shape}")
     print(f"Real test set shape y: {y_test_r.shape}")
+
+    if unseen:
+        print(f"Loading unseen data from: {UNSEEN_DATA_PATH}")
+        df_unseen_raw = pd.read_csv(UNSEEN_DATA_PATH)
+        print(f"Loaded unseen data: {len(df_unseen_raw)} events")
+        print(f"Filtering unseen data by sidelobes ratio threshold: {sidelobes_threshold}")
+        df_unseen = df_unseen_raw[df_unseen_raw["sidelobes_ratio"] < sidelobes_threshold]
+        print(f"Filtered unseen sidelobes data: {len(df_unseen)} events")
+        print(f"Filtering unseen data by FOV: x_range={x_min}-{x_max}, y_range={y_min}-{y_max}")
+        df_unseen_filtered = df_unseen[
+            (df_unseen["loc_x_stix"] > x_min) & (df_unseen["loc_x_stix"] < x_max) &
+            (df_unseen["loc_y_stix"] > y_min) & (df_unseen["loc_y_stix"] < y_max)
+        ]
+        print(f"Filtered unseen FOV data: {len(df_unseen_filtered)} events")
+
+        X_unseen = df_unseen_filtered[feature_cols].values.astype(float)
+        y_unseen = df_unseen_filtered[TARGET_COLUMNS].values.astype(float)
+
+        print("Normalizing unseen data...")
+        X_unseen_norm = normalize_counts(X_unseen)
+        y_unseen_norm = normalize_locations(y_unseen)
+        print(f"Unseen test set shape X: {X_unseen_norm.shape}")
+        print(f"Unseen test set shape y: {y_unseen_norm.shape}")
+
+        result["test_unseen"] = (X_unseen_norm, y_unseen_norm)
     
     # Load synthetic data if path is provided
     if syn_data_path is not None:
@@ -123,14 +159,6 @@ def load_data(syn_data_path: Optional[str], x_fov: float, y_fov: float, sidelobe
         X_syn = data_syn['X'][:, :len(feature_cols)]  # Slice to match col_count detectors
         y_syn = data_syn['Y']
         
-        print(f"Filtering synthetic data by FOV: x_fov={x_fov}, y_fov={y_fov}")
-        # Filter by FOV
-        mask = (
-            (y_syn[:, 0] > -x_fov) & (y_syn[:, 0] < x_fov) &
-            (y_syn[:, 1] > -y_fov) & (y_syn[:, 1] < y_fov)
-        )
-        X_syn = X_syn[mask]
-        y_syn = y_syn[mask]
         
         print("Normalizing synthetic data...")
         X_syn_norm = normalize_counts(X_syn)
