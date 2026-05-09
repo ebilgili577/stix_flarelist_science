@@ -40,6 +40,8 @@ def ensure_synthetic_data(n_samples: int, min_x: int, min_y:int, max_x:int, max_
     """
     Ensure synthetic data exists. Expects data to be generated externally using
     the stix-data-generator repository: https://github.com/i4Ds/stix-data-generator
+    Ensure synthetic data exists. Expects data to be generated externally using
+    the stix-data-generator repository: https://github.com/i4Ds/stix-data-generator
     
     Args:
         n_samples: Number of synthetic samples
@@ -47,6 +49,9 @@ def ensure_synthetic_data(n_samples: int, min_x: int, min_y:int, max_x:int, max_
         
     Returns:
         Path to synthetic data file
+        
+    Raises:
+        FileNotFoundError: If the synthetic data file does not exist
     """
     
     filepath = SYNTHETIC_DATA_DIR / f"sim_{n_samples}_x{min_x}-{max_x}_y{min_y}-{max_y}.npz"

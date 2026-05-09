@@ -7,7 +7,7 @@ Machine learning pipeline for solar flare localization using STIX (Spectrometer/
 This project provides tools for:
 - **Fetching and processing** STIX flare data from the ESA Solar Orbiter mission
 - **Training neural networks** to predict flare locations from raw detector counts
-- **Simulating synthetic data** for model pre-training
+- **Using synthetic data** for model pre-training (generated externally)
 
 ## Installation
 
@@ -74,16 +74,38 @@ stix_flarelist_science/
 │   ├── data.py              # Data loading and preprocessing
 │   ├── model.py             # Neural network architecture
 │   └── training.py          # Training loops
-├── simulator/               # Synthetic data generation
-│   ├── simulator.py         # STIX detector simulation
-│   └── simulate_data.py     # Dataset generation
 ├── generate_flarelist/      # Flare data pipeline
 │   ├── cli.py               # stix-fetch entry point
 │   ├── flarelist_generate.py
 │   └── ...
+├── simulator/              # STIX data simulator (external)
+│   └── [Clone stix-data-generator here]
 ├── data/                    # Data outputs
+│   ├── 6_final/            # Final flarelist CSVs
+│   ├── stix_data/          # Correction data files (phase_corr.sav, pitch_slit.sav, uv.sav)
+│   └── synthetic/          # Synthetic data (generated externally)
 └── experiments/             # Training outputs 
 ```
+
+## Synthetic Data
+
+This repository uses a previous version of the original STIX data simulator. For generating synthetic training data, please use the original and up-to-date version available at:
+
+**[stix-data-generator](https://github.com/i4Ds/stix-data-generator)**
+
+### Setup Instructions
+
+1. **Clone the simulator**: Clone the `stix-data-generator` repository into the `simulator/` folder:
+   ```bash
+   git clone https://github.com/i4Ds/stix-data-generator.git simulator
+   ```
+
+2. **Place correction data**: Copy the required correction data files into `data/stix_data/`:
+   - `phase_corr.sav`
+   - `pitch_slit.sav`
+   - `uv.sav`
+
+3. **Generate synthetic data**: Use the simulator to generate synthetic data and save the output `.npz` files in the `data/synthetic/` directory. The training pipeline expects files named `sim_{n_samples}_{fov_big}.npz` (e.g., `sim_40000_4400.npz`).
 
 ## Training Modes
 

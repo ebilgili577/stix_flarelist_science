@@ -11,7 +11,9 @@ __pycache__/
 .DS_Store
 
 # large files, artifacts
-data/
+data/*
+!data/6_final/
+!data/synthetic/
 experiments/
 logs/
 models/
@@ -23,6 +25,7 @@ raw_fits/
 *.fits
 *.out
 *.csv
+!data/6_final/*.csv
 *.sav
 
 
