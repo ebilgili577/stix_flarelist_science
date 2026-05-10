@@ -645,7 +645,7 @@ def apply_top_bot_shadowing(yc, A: np.typing.NDArray, B: np.typing.NDArray, C: n
 
     """
 
-    D, h_win, h_det = InstrumentMeasurements()
+    D_tot, h_win, h_det = InstrumentMeasurements()
 
     y_min, y_max = get_regime()
 
@@ -654,7 +654,7 @@ def apply_top_bot_shadowing(yc, A: np.typing.NDArray, B: np.typing.NDArray, C: n
     y_rad = np.deg2rad(yc/3600)
 
     # 2. calculate how much the window has moved in y direction
-    dy = np.tan(y_rad) * D
+    dy = np.tan(y_rad) * D_tot
 
 
     # 3. calculate the vertical overlap of the window with the detector
@@ -688,7 +688,6 @@ def apply_top_bot_shadowing(yc, A: np.typing.NDArray, B: np.typing.NDArray, C: n
     # else no shadowing
     else:
         A_top, B_top, C_top, D_top, A_bot, B_bot, C_bot, D_bot = A, B, C, D, A, B, C , D
-
 
     return A_top, A_bot, B_top, B_bot, C_top, C_bot, D_top, D_bot
 
