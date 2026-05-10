@@ -11,7 +11,6 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 
 import argparse
-from typing import List
 import numpy as np
 
 from .config import TrainConfig, EXPERIMENTS_DIR
@@ -25,9 +24,10 @@ def parse_args() -> TrainConfig:
     
     parser.add_argument("--experiment", type=str, required=True, help="Experiment name")
     parser.add_argument("--n-samples", type=int, default=1_000_000, help="Number of synthetic samples")
-    parser.add_argument("--fov-big", type=int, default=4400, help="FOV_big for synthetic data")
-    parser.add_argument("--x-fov", type=float, default=2200.0, help="X FOV bound")
-    parser.add_argument("--y-fov", type=float, default=1800.0, help="Y FOV bound")
+    parser.add_argument("--x-min", type=float, default=-2295.0, help="X min")
+    parser.add_argument("--x-max", type=float, default=2295.0, help="X max")
+    parser.add_argument("--y-min", type=float, default=-1878.0, help="y min ")
+    parser.add_argument("--y-max", type=float, default=1878.0, help="Y max")
     parser.add_argument("--lr", type=float, default=1e-3, help="Learning rate")
     parser.add_argument("--epochs", type=int, default=1000, help="Number of epochs")
     parser.add_argument("--batch", type=int, default=512, help="Batch size")
@@ -58,9 +58,10 @@ def parse_args() -> TrainConfig:
         experiment=args.experiment,
         mode=args.mode,
         n_samples=args.n_samples,
-        fov_big=args.fov_big,
-        x_fov=args.x_fov,
-        y_fov=args.y_fov,
+        x_min=args.x_min,
+        x_max=args.x_max,
+        y_min=args.y_min,
+        y_max=args.y_max,
         learning_rate=args.lr,
         epochs=args.epochs,
         batch_size=args.batch,
@@ -68,7 +69,7 @@ def parse_args() -> TrainConfig:
         n_runs=args.n_runs,
         col_count=args.col_count,
         sidelobes_threshold=args.sidelobes_threshold,
-        hidden_dims=hidden_dims_list
+        hidden_dims=hidden_dims_list,
     )
 
 
@@ -90,11 +91,11 @@ def main():
     needs_synthetic = any(m in ["syn", "mixed", "finetune"] for m in modes_to_train)
     syn_data_path = None
     if needs_synthetic:
-        syn_data_path = ensure_synthetic_data(config.n_samples, config.fov_big)
-    
+        syn_data_path = ensure_synthetic_data(n_samples=config.n_samples, min_x=config.x_min, max_x=config.x_max, min_y=config.y_min, max_y=config.y_max)
+
     # Load data
     print("[DEBUG] Loading data...", flush=True)
-    data = load_data(syn_data_path, config.x_fov, config.y_fov, config.sidelobes_threshold, config.col_count)
+    data = load_data(syn_data_path=syn_data_path, x_min=config.x_min,x_max=config.x_max, y_min=config.y_min, y_max=config.y_max, sidelobes_threshold=config.sidelobes_threshold, col_count=config.col_count)
     print("[DEBUG] Data loaded", flush=True)
     
     # Train models

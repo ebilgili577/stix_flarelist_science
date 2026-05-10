@@ -4,10 +4,11 @@ from typing import List
 
 # Data paths
 
-REAL_DATA_PATH = Path("data/6_final/stix_flarelist_final_20210214_20250830.csv")
-SYNTHETIC_DATA_DIR = Path("data/synthetic")
-EXPERIMENTS_DIR = Path("experiments")
-
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+REAL_DATA_PATH = PROJECT_ROOT / "data/6_final/stix_flarelist_final_20210214_20250830.csv"
+SYNTHETIC_DATA_DIR = PROJECT_ROOT / "data/synthetic"
+EXPERIMENTS_DIR = PROJECT_ROOT / "experiments"
+UNSEEN_DATA_PATH = PROJECT_ROOT / "data/unseen/stix_flarelist_final_20250901_20260121.csv"
 # Data constants
 
 NORMALIZATION_FACTOR = 4000.0
@@ -43,6 +44,9 @@ def get_feature_columns(col_count: int = None) -> List[str]:
 
 TARGET_COLUMNS: List[str] = ["loc_x_stix", "loc_y_stix"]
 
+detector_dict = dict(zip(DETECTOR_ORDER, [f"{i}{j}" for i in range(10, 2, -1) for j in ["a", "b", "c", "d"]]))
+
+
 # Training Configuration
 
 @dataclass
@@ -54,9 +58,10 @@ class TrainConfig:
     col_count: int = 12
     sidelobes_threshold: float = 0.84
     n_samples: int = 1_000_000
-    fov_big: int = 4400
-    x_fov: float = 2200.0
-    y_fov: float = 1800.0
+    x_min: float = -2295.0
+    x_max: float = 2295.0
+    y_min: float = -1878.0
+    y_max: float = 1878.0
     learning_rate: float = 1e-3
     epochs: int = 1000
     batch_size: int = 512

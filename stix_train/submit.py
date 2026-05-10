@@ -31,14 +31,15 @@ def main():
     # Synthetic data params (only ask if needed)
     if mode != "real":
         n_samples = ask("synthetic n_samples", TrainConfig.n_samples)
-        fov_big = ask("synthetic fov_big", TrainConfig.fov_big)
     else:
         n_samples = str(TrainConfig.n_samples)
-        fov_big = str(TrainConfig.fov_big)
     
     # Training params
-    x_fov = ask("x_fov", TrainConfig.x_fov)
-    y_fov = ask("y_fov", TrainConfig.y_fov)
+    x_min = ask("x_min", TrainConfig.x_min)
+    x_max = ask("x_max", TrainConfig.x_max)
+    y_min = ask("y_min", TrainConfig.y_min)
+    y_max = ask("y_max", TrainConfig.y_max)
+
     lr = ask("learning rate", TrainConfig.learning_rate)
     epochs = ask("epochs", TrainConfig.epochs)
     batch = ask("batch size", TrainConfig.batch_size)
@@ -68,9 +69,10 @@ def main():
         "slurm/send_job.sh",
         "--experiment", exp,
         "--n-samples", str(n_samples),
-        "--fov-big", str(fov_big),
-        "--x-fov", str(x_fov),
-        "--y-fov", str(y_fov),
+        "--x-min", str(x_min),
+        "--x-max", str(x_max),
+        "--y-min", str(y_min),
+        "--y-max", str(y_max),
         "--lr", str(lr),
         "--epochs", str(epochs),
         "--batch", str(batch),
