@@ -23,7 +23,9 @@ DataDict = Dict[str, Tuple[np.ndarray, np.ndarray]]
 
 def normalize_counts(X: np.ndarray) -> np.ndarray:
     """Normalize detector counts by event maximum count."""
-    return X / X.max(axis=1, keepdims=True)
+    row_max = X.max(axis=1, keepdims=True)
+    row_max[row_max == 0] = 1.0
+    return X / row_max
 
 
 def normalize_locations(y: np.ndarray) -> np.ndarray:
@@ -38,10 +40,7 @@ def denormalize_locations(y: np.ndarray) -> np.ndarray:
 
 def ensure_synthetic_data(n_samples: int, min_x: int, min_y:int, max_x:int, max_y:int) -> str:
     """
-    Ensure synthetic data exists. Expects data to be generated externally using
-    the stix-data-generator repository: https://github.com/i4Ds/stix-data-generator
-    Ensure synthetic data exists. Expects data to be generated externally using
-    the stix-data-generator repository: https://github.com/i4Ds/stix-data-generator
+    Ensure synthetic NPZ exists (generates via simulator if missing).
     
     Args:
         n_samples: Number of synthetic samples

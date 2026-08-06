@@ -11,3 +11,4 @@ dependencies:
   - cudnn
   - pip:
     - nvidia-cudnn-cu12
+    - torch
