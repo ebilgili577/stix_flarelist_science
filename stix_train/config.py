@@ -44,7 +44,7 @@ def get_feature_columns(col_count: int = None) -> List[str]:
 
 TARGET_COLUMNS: List[str] = ["loc_x_stix", "loc_y_stix"]
 
-detector_dict = dict(zip(DETECTOR_ORDER, [f"{i}{j}" for i in range(10, 2, -1) for j in ["a", "b", "c", "d"]]))
+detector_dict = dict(zip(DETECTOR_ORDER, [f"{i}{j}" for i in range(10, 2, -1) for j in ["a", "b", "c"]]))
 
 
 # Training Configuration
